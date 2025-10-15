@@ -1,4 +1,4 @@
-﻿# Expo
+# Expo
 .expo/
 .expo-shared/
 dist/
@@ -15,7 +15,7 @@ yarn-error.log*
 *.pem
 
 # Environment
-.env
+# .env (Private 저장소라서 포함)
 .env.local
 .env.*.local
 
