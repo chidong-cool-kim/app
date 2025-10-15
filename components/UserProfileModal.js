@@ -19,18 +19,36 @@ export default function UserProfileModal({ visible, onClose, userEmail }) {
     setError(null);
     setUserData(null);
     try {
-      const response = await fetch(`${API_URL}/api/user/details?email=${userEmail}`);
-      if (!response.ok) {
-        throw new Error('사용자 정보를 불러오는데 실패했습니다.');
+      const url = `${API_URL}/api/user/details?email=${encodeURIComponent(userEmail)}`;
+      console.log('🔍 사용자 정보 요청:', url);
+      
+      const response = await fetch(url);
+      console.log('📡 응답 상태:', response.status);
+      console.log('📡 Content-Type:', response.headers.get('content-type'));
+      
+      // 응답이 JSON인지 확인
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await response.text();
+        console.error('❌ JSON이 아닌 응답:', text.substring(0, 200));
+        throw new Error('서버가 올바른 응답을 반환하지 않았습니다. 서버를 확인해주세요.');
       }
+      
       const data = await response.json();
+      console.log('📦 응답 데이터:', data);
+      
+      if (!response.ok) {
+        throw new Error(data.message || '사용자 정보를 불러오는데 실패했습니다.');
+      }
+      
       if (data.success) {
         setUserData(data.user);
       } else {
         throw new Error(data.message || '사용자 정보를 가져올 수 없습니다.');
       }
     } catch (err) {
-      setError(err.message);
+      console.error('❌ 사용자 정보 조회 오류:', err);
+      setError(err.message || '서버 연결에 실패했습니다.');
     } finally {
       setLoading(false);
     }

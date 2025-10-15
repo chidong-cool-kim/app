@@ -313,10 +313,7 @@ export default function StudyGroup() {
 
   // 반응형 스타일 생성
   const getResponsiveStyles = () => {
-    if (screenInfo.isPhone) {
-      return phoneStyles;
-    }
-    return {}; // 태블릿은 기존 스타일 유지
+    return getResponsiveStylesForStudyGroup();
   };
 
   const responsiveStyles = getResponsiveStyles();
@@ -1042,3 +1039,74 @@ const phoneStyles = StyleSheet.create({
     fontWeight: '500',
   },
 });
+
+// 반응형 스타일 함수 추가
+const getResponsiveStylesForStudyGroup = () => {
+  const { width, height } = Dimensions.get('window');
+  
+  // 더 작은 핸드폰 (width < 360)
+  if (width < 360) {
+    return {
+      header: { paddingHorizontal: 14, paddingVertical: 10 },
+      backBtn: { fontSize: 13 },
+      title: { fontSize: 15 },
+      createBtn: { fontSize: 13 },
+      tabText: { fontSize: 13 },
+      searchContainer: { padding: 10 },
+      searchInput: { fontSize: 13, paddingHorizontal: 8, paddingVertical: 6, borderRadius: 5 },
+      searchBtn: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 5 },
+      searchBtnText: { fontSize: 13 },
+      groupCard: { padding: 10, marginVertical: 5, borderRadius: 8 },
+      groupName: { fontSize: 14 },
+      memberCount: { fontSize: 10 },
+      subjectBadgeText: { fontSize: 8 },
+      infoText: { fontSize: 9 },
+      groupDescription: { fontSize: 11, lineHeight: 14, marginBottom: 7 },
+      actionBtn: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 7 },
+      actionBtnText: { fontSize: 10 },
+      modalContent: { width: '92%', padding: 14 },
+      modalTitle: { fontSize: 16, marginBottom: 14 },
+      formLabel: { fontSize: 13, marginBottom: 5, marginTop: 8 },
+      formInput: { paddingHorizontal: 8, paddingVertical: 6, fontSize: 13 },
+    };
+  }
+  
+  // 일반 핸드폰 (360 <= width < 768) - 기존 phoneStyles 사용
+  if (width < 768) {
+    return phoneStyles;
+  }
+  
+  // 작은 태블릿 (768 <= width < 1024)
+  if (width < 1024) {
+    return {
+      header: { paddingHorizontal: 18, paddingVertical: 13 },
+      backBtn: { fontSize: 15 },
+      title: { fontSize: 17 },
+      createBtn: { fontSize: 15 },
+      tabText: { fontSize: 15 },
+      searchContainer: { padding: 13 },
+      searchInput: { paddingHorizontal: 11, paddingVertical: 9, fontSize: 15 },
+      searchBtn: { paddingHorizontal: 18, paddingVertical: 9 },
+      searchBtnText: { fontSize: 15 },
+      groupCard: { width: '48%', padding: 11, marginVertical: 5, borderRadius: 11 },
+      cardHeader: { marginBottom: 7 },
+      groupName: { fontSize: 15 },
+      memberCount: { fontSize: 12 },
+      badgeRow: { gap: 5, marginBottom: 7 },
+      subjectBadge: { paddingHorizontal: 7, paddingVertical: 3 },
+      subjectBadgeText: { fontSize: 10 },
+      infoRow: { marginBottom: 7 },
+      infoText: { fontSize: 11 },
+      groupDescription: { fontSize: 12, lineHeight: 16, marginBottom: 9 },
+      actionBtn: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 9 },
+      actionBtnText: { fontSize: 12 },
+      modalContent: { width: '88%', padding: 18 },
+      modalTitle: { fontSize: 19, marginBottom: 18 },
+      formLabel: { fontSize: 15, marginBottom: 7, marginTop: 11 },
+      formInput: { paddingHorizontal: 11, paddingVertical: 9, fontSize: 15 },
+    };
+  }
+  
+  // 큰 태블릿 및 데스크톱 (width >= 1024) - 기본 스타일 사용
+  return {};
+};

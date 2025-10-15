@@ -32,11 +32,19 @@ const verificationLimiter = rateLimit({
 // 인증코드 저장소 (실제 환경에서는 Redis나 데이터베이스 사용)
 const verificationCodes = new Map();
 
-// 입력 데이터 검증 함수
-function validateEmail(email) {
+// ⭐ Gmail 전용 이메일 검증 (인증코드 발송용)
+function validateGmailEmail(email) {
     if (!email || typeof email !== 'string') return false;
     if (!validator.isEmail(email)) return false;
     if (!email.endsWith('@gmail.com')) return false;
+    if (email.length > 254) return false; // RFC 5321 제한
+    return true;
+}
+
+// ⭐ 일반 이메일 검증 (회원가입/로그인용 - Gmail 제한 없음)
+function validateEmail(email) {
+    if (!email || typeof email !== 'string') return false;
+    if (!validator.isEmail(email)) return false;
     if (email.length > 254) return false; // RFC 5321 제한
     return true;
 }
@@ -57,6 +65,7 @@ function sanitizeInput(input) {
     if (typeof input !== 'string') return input;
     return validator.escape(input.trim());
 }
+
 // Gmail SMTP 설정
 const transporter = nodemailer.createTransport({
     service: 'gmail',
@@ -71,20 +80,37 @@ function generateVerificationCode() {
     return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
-// 인증코드 발송 API
+// 서버 연결 테스트를 위한 ping 엔드포인트
+router.get('/ping', (req, res) => {
+    res.json({ success: true, message: 'Server is running!' });
+});
+
+// 인증코드 발송 API (Gmail 전용)
 router.post('/send-verification-code', verificationLimiter, async (req, res) => {
     try {
         const { email } = req.body;
 
-        // 입력 검증
-        if (!validateEmail(email)) {
+        // ⭐ Gmail 전용 검증 사용
+        if (!validateGmailEmail(email)) {
             return res.status(400).json({
                 success: false,
                 message: '유효한 Gmail 주소를 입력해주세요.'
             });
         }
 
-        const sanitizedEmail = sanitizeInput(email.toLowerCase());
+        // SMTP 연결 테스트
+        try {
+            await transporter.verify();
+            console.log('SMTP 연결 성공');
+        } catch (smtpError) {
+            console.error('SMTP 연결 실패:', smtpError);
+            return res.status(500).json({
+                success: false,
+                message: 'SMTP 서버 연결에 실패했습니다.'
+            });
+        }
+
+        const sanitizedEmail = email.toLowerCase().trim();
 
         // 인증코드 생성
         const verificationCode = generateVerificationCode();
@@ -121,7 +147,7 @@ router.post('/send-verification-code', verificationLimiter, async (req, res) => 
 
         await transporter.sendMail(mailOptions);
 
-        console.log(`인증코드 발송 성공: ${email} - ${verificationCode}`);
+        console.log(`✅ 인증코드 발송 성공: ${email} - ${verificationCode}`);
 
         res.json({
             success: true,
@@ -130,7 +156,7 @@ router.post('/send-verification-code', verificationLimiter, async (req, res) => 
         });
 
     } catch (error) {
-        console.error('인증코드 발송 실패:', error);
+        console.error('❌ 인증코드 발송 실패:', error);
         res.status(500).json({
             success: false,
             message: '인증코드 발송에 실패했습니다.'
@@ -223,13 +249,13 @@ router.post('/verify-code', async (req, res) => {
                 });
                 
                 await user.save();
-                console.log(`새 사용자 생성: ${email}`);
+                console.log(`✅ 새 Gmail 사용자 생성: ${email}`);
             } else {
                 // 기존 사용자 이메일 인증 상태 업데이트
                 user.isEmailVerified = true;
                 user.updatedAt = new Date();
                 await user.save();
-                console.log(`기존 사용자 인증 완료: ${email}`);
+                console.log(`✅ 기존 Gmail 사용자 인증 완료: ${email}`);
             }
 
             res.json({
@@ -246,7 +272,7 @@ router.post('/verify-code', async (req, res) => {
             });
             
         } catch (dbError) {
-            console.error('사용자 저장 실패:', dbError);
+            console.error('❌ 사용자 저장 실패:', dbError);
             res.status(500).json({
                 success: false,
                 message: '사용자 정보 저장에 실패했습니다.'
@@ -254,7 +280,7 @@ router.post('/verify-code', async (req, res) => {
         }
 
     } catch (error) {
-        console.error('인증코드 확인 실패:', error);
+        console.error('❌ 인증코드 확인 실패:', error);
         res.status(500).json({
             success: false,
             message: '인증코드 확인에 실패했습니다.'
@@ -326,7 +352,7 @@ router.put('/update-username', async (req, res) => {
         user.updatedAt = new Date();
         await user.save();
 
-        console.log(`닉네임 업데이트: ${email} -> ${username}`);
+        console.log(`✅ 닉네임 업데이트: ${email} -> ${username}`);
 
         res.json({
             success: true,
@@ -342,7 +368,7 @@ router.put('/update-username', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('닉네임 업데이트 실패:', error);
+        console.error('❌ 닉네임 업데이트 실패:', error);
         res.status(500).json({
             success: false,
             message: '닉네임 업데이트에 실패했습니다.'
@@ -380,7 +406,7 @@ router.post('/gmail-login', async (req, res) => {
         user.checkAndResetDaily();
         await user.save();
 
-        console.log(`Gmail 사용자 로그인: ${email}`);
+        console.log(`✅ Gmail 사용자 로그인: ${email}`);
 
         res.json({
             success: true,
@@ -401,7 +427,7 @@ router.post('/gmail-login', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Gmail 로그인 실패:', error);
+        console.error('❌ Gmail 로그인 실패:', error);
         res.status(500).json({
             success: false,
             message: '로그인 처리 중 오류가 발생했습니다.'
@@ -449,7 +475,7 @@ router.put('/update-user-profile', async (req, res) => {
         user.updatedAt = new Date();
         await user.save();
 
-        console.log(`일반 사용자 프로필 업데이트: ${email} -> ${username}`);
+        console.log(`✅ 일반 사용자 프로필 업데이트: ${email} -> ${username}`);
 
         res.json({
             success: true,
@@ -465,7 +491,7 @@ router.put('/update-user-profile', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('프로필 업데이트 실패:', error);
+        console.error('❌ 프로필 업데이트 실패:', error);
         res.status(500).json({
             success: false,
             message: '프로필 업데이트에 실패했습니다.'
@@ -478,7 +504,7 @@ router.post('/email-login', authLimiter, async (req, res) => {
     try {
         const { email, password } = req.body;
 
-        // 입력 검증
+        // 입력 검증 (일반 이메일 검증 사용)
         if (!validateEmail(email)) {
             return res.status(400).json({
                 success: false,
@@ -493,7 +519,7 @@ router.post('/email-login', authLimiter, async (req, res) => {
             });
         }
 
-        const sanitizedEmail = sanitizeInput(email.toLowerCase());
+        const sanitizedEmail = email.toLowerCase().trim();
 
         // 사용자 찾기 (타이밍 공격 방지를 위해 항상 동일한 시간 소요)
         const user = await User.findOne({ 
@@ -540,7 +566,7 @@ router.post('/email-login', authLimiter, async (req, res) => {
         user.checkAndResetDaily();
         await user.save();
 
-        console.log(`일반 사용자 로그인: ${email}`);
+        console.log(`✅ 일반 사용자 로그인: ${email}`);
 
         res.json({
             success: true,
@@ -560,7 +586,7 @@ router.post('/email-login', authLimiter, async (req, res) => {
         });
 
     } catch (error) {
-        console.error('일반 로그인 실패:', error);
+        console.error('❌ 일반 로그인 실패:', error);
         res.status(500).json({
             success: false,
             message: '로그인 처리 중 오류가 발생했습니다.'
@@ -592,6 +618,7 @@ router.get('/user-data/:email', async (req, res) => {
         // 일일 데이터 초기화 체크
         user.checkAndResetDaily();
         await user.save();
+        
         res.json({
             success: true,
             data: {
@@ -619,7 +646,7 @@ router.get('/user-data/:email', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('사용자 데이터 조회 실패:', error);
+        console.error('❌ 사용자 데이터 조회 실패:', error);
         res.status(500).json({
             success: false,
             message: '사용자 데이터 조회에 실패했습니다.'
@@ -648,7 +675,7 @@ router.post('/notes', async (req, res) => {
             });
         }
 
-        console.log('노트 저장 요청:', { email, title, contentLength: content?.length, contentPreview: content?.substring(0, 100) });
+        console.log('📝 노트 저장 요청:', { email, title, contentLength: content?.length, contentPreview: content?.substring(0, 100) });
         
         const newNote = {
             title: title.trim(),
@@ -667,7 +694,7 @@ router.post('/notes', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('노트 저장 실패:', error);
+        console.error('❌ 노트 저장 실패:', error);
         res.status(500).json({
             success: false,
             message: '노트 저장에 실패했습니다.'
@@ -719,7 +746,7 @@ router.put('/notes/:noteId', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('노트 수정 실패:', error);
+        console.error('❌ 노트 수정 실패:', error);
         res.status(500).json({
             success: false,
             message: '노트 수정에 실패했습니다.'
@@ -767,7 +794,7 @@ router.delete('/notes/:noteId', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('노트 삭제 실패:', error);
+        console.error('❌ 노트 삭제 실패:', error);
         res.status(500).json({
             success: false,
             message: '노트 삭제에 실패했습니다.'
@@ -806,7 +833,7 @@ router.post('/study-time', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('공부 시간 저장 실패:', error);
+        console.error('❌ 공부 시간 저장 실패:', error);
         res.status(500).json({
             success: false,
             message: '공부 시간 저장에 실패했습니다.'
@@ -856,7 +883,7 @@ router.get('/weekly-study/:email', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('주간 공부시간 조회 실패:', error);
+        console.error('❌ 주간 공부시간 조회 실패:', error);
         res.status(500).json({
             success: false,
             message: '주간 공부시간 조회에 실패했습니다.'
@@ -948,7 +975,7 @@ router.put('/user/profile-image', upload.single('profileImage'), async (req, res
         });
 
     } catch (error) {
-        console.error('프로필 이미지 업데이트 실패:', error);
+        console.error('❌ 프로필 이미지 업데이트 실패:', error);
         res.status(500).json({
             success: false,
             message: '프로필 이미지 업데이트에 실패했습니다.'
@@ -977,7 +1004,7 @@ router.post('/set-admin', async (req, res) => {
             });
         }
 
-        console.log('관리자 권한 설정 대상:', {
+        console.log('🔑 관리자 권한 설정 대상:', {
             email: user.email,
             name: user.name,
             provider: user.provider,
@@ -1001,7 +1028,7 @@ router.post('/set-admin', async (req, res) => {
 
         await user.save();
 
-        console.log('관리자 권한 설정 완료:', {
+        console.log('✅ 관리자 권한 설정 완료:', {
             email: user.email,
             role: user.role
         });
@@ -1018,7 +1045,7 @@ router.post('/set-admin', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('관리자 권한 설정 실패:', error);
+        console.error('❌ 관리자 권한 설정 실패:', error);
         res.status(500).json({
             success: false,
             message: '관리자 권한 설정에 실패했습니다.'
@@ -1074,7 +1101,7 @@ router.post('/planner', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('플래너 저장 실패:', error);
+        console.error('❌ 플래너 저장 실패:', error);
         res.status(500).json({
             success: false,
             message: '플래너 저장에 실패했습니다.'
@@ -1119,7 +1146,7 @@ router.get('/planner/:email/:date', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('플래너 조회 실패:', error);
+        console.error('❌ 플래너 조회 실패:', error);
         res.status(500).json({
             success: false,
             message: '플래너 조회에 실패했습니다.'
@@ -1158,7 +1185,7 @@ router.post('/ai-chat', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('AI 채팅 저장 실패:', error);
+        console.error('❌ AI 채팅 저장 실패:', error);
         res.status(500).json({
             success: false,
             message: 'AI 채팅 저장에 실패했습니다.'
@@ -1166,12 +1193,88 @@ router.post('/ai-chat', async (req, res) => {
     }
 });
 
-// 회원가입 API (이메일/비밀번호)
+// AI 스타일 저장 API
+router.post('/ai-style', async (req, res) => {
+    try {
+        const { email, aiStyle } = req.body;
+
+        if (!email || !aiStyle) {
+            return res.status(400).json({
+                success: false,
+                message: '이메일과 AI 스타일이 필요합니다.'
+            });
+        }
+
+        const user = await User.findOne({ email: email.toLowerCase() });
+
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: '사용자를 찾을 수 없습니다.'
+            });
+        }
+
+        user.aiStyle = aiStyle;
+        await user.save();
+
+        res.json({
+            success: true,
+            message: 'AI 스타일이 저장되었습니다.',
+            aiStyle: user.aiStyle
+        });
+
+    } catch (error) {
+        console.error('❌ AI 스타일 저장 실패:', error);
+        res.status(500).json({
+            success: false,
+            message: 'AI 스타일 저장에 실패했습니다.'
+        });
+    }
+});
+
+// AI 스타일 불러오기 API
+router.get('/ai-style/:email', async (req, res) => {
+    try {
+        const { email } = req.params;
+
+        if (!email) {
+            return res.status(400).json({
+                success: false,
+                message: '이메일이 필요합니다.'
+            });
+        }
+
+        const user = await User.findOne({ email: email.toLowerCase() });
+
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: '사용자를 찾을 수 없습니다.'
+            });
+        }
+
+        res.json({
+            success: true,
+            aiStyle: user.aiStyle || 'friendly'
+        });
+
+    } catch (error) {
+        console.error('❌ AI 스타일 불러오기 실패:', error);
+        res.status(500).json({
+            success: false,
+            message: 'AI 스타일 불러오기에 실패했습니다.'
+        });
+    }
+});
+
+// 회원가입 API (이메일/비밀번호) - ⭐ 모든 이메일 도메인 허용
 router.post('/email-register', verificationLimiter, async (req, res) => {
     try {
         const { email, password, username } = req.body;
 
-        // 입력 검증
+        console.log('📝 회원가입 요청 수신:', { email, username, hasPassword: !!password });
+
+        // ⭐ 일반 이메일 검증 사용 (Gmail 제한 없음)
         if (!validateEmail(email)) {
             return res.status(400).json({
                 success: false,
@@ -1193,8 +1296,10 @@ router.post('/email-register', verificationLimiter, async (req, res) => {
             });
         }
 
-        const sanitizedEmail = sanitizeInput(email.toLowerCase());
-        const sanitizedUsername = sanitizeInput(username);
+        const sanitizedEmail = email.toLowerCase().trim();
+        const sanitizedUsername = username.trim();
+
+        console.log('📝 검증 완료:', { sanitizedEmail, sanitizedUsername });
 
         // 이메일 중복 확인
         const existingUser = await User.findOne({ 
@@ -1202,6 +1307,7 @@ router.post('/email-register', verificationLimiter, async (req, res) => {
         });
 
         if (existingUser) {
+            console.log('❌ 이메일 중복:', sanitizedEmail);
             return res.status(400).json({
                 success: false,
                 message: '이미 사용 중인 이메일입니다.'
@@ -1214,6 +1320,7 @@ router.post('/email-register', verificationLimiter, async (req, res) => {
         });
 
         if (existingUsername) {
+            console.log('❌ 사용자명 중복:', sanitizedUsername);
             return res.status(400).json({
                 success: false,
                 message: '이미 사용 중인 사용자명입니다.'
@@ -1224,6 +1331,8 @@ router.post('/email-register', verificationLimiter, async (req, res) => {
         const saltRounds = 12;
         const hashedPassword = await bcrypt.hash(password, saltRounds);
 
+        console.log('🔐 비밀번호 해시 완료');
+
         // 새 사용자 생성
         const newUser = new User({
             name: sanitizedUsername,
@@ -1232,7 +1341,7 @@ router.post('/email-register', verificationLimiter, async (req, res) => {
             password: hashedPassword,
             provider: 'email',
             providerId: sanitizedEmail,
-            isEmailVerified: false, // 이메일 인증 필요
+            isEmailVerified: true, // ⭐ 이메일 인증 완료 상태로 생성
             // 기본 데이터 초기화
             notes: [],
             aiChats: [],
@@ -1245,7 +1354,7 @@ router.post('/email-register', verificationLimiter, async (req, res) => {
         });
 
         await newUser.save();
-        console.log(`새 사용자 회원가입: ${sanitizedEmail}`);
+        console.log(`✅ 새 사용자 회원가입 완료: ${sanitizedEmail} (${sanitizedUsername})`);
 
         res.status(201).json({
             success: true,
@@ -1262,10 +1371,12 @@ router.post('/email-register', verificationLimiter, async (req, res) => {
         });
 
     } catch (error) {
-        console.error('회원가입 실패:', error);
+        console.error('❌ 회원가입 실패:', error);
+        console.error('❌ 상세 오류:', error.stack);
         res.status(500).json({
             success: false,
-            message: '회원가입 처리 중 오류가 발생했습니다.'
+            message: '회원가입 처리 중 오류가 발생했습니다.',
+            error: process.env.NODE_ENV === 'development' ? error.message : undefined
         });
     }
 });

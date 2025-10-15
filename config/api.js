@@ -14,6 +14,8 @@ export const API_BASE_URL = Platform.OS === 'web'
 export const API_ENDPOINTS = {
   GMAIL_LOGIN: '/api/auth/gmail-login',
   EMAIL_LOGIN: '/api/email-login',
+  GOOGLE_LOGIN: '/api/auth/google-login',
+  GOOGLE_UPDATE_USERNAME: '/api/auth/google-update-username',
 };
 
 // API 호출 헬퍼 함수

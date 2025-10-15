@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, TextInput, Text, StyleSheet } from 'react-native';
 import { colors, typography, spacing, borderRadius, components } from '../../styles/designSystem';
+import { responsive } from '../../utils/responsive';
 
 export default function Input({ 
   label,
@@ -58,7 +59,7 @@ export default function Input({
             backgroundColor: theme.backgroundColor,
             borderColor: getBorderColor(),
             color: theme.textColor,
-            minHeight: multiline ? 80 : 44
+            minHeight: multiline ? responsive.size(80) : responsive.size(44)
           },
           inputStyle
         ]}
@@ -94,26 +95,27 @@ export default function Input({
 
 const styles = StyleSheet.create({
   container: {
-    marginBottom: spacing.md
+    marginBottom: responsive.spacing(spacing.md)
   },
   label: {
-    fontSize: typography.fontSize.sm,
+    fontSize: responsive.fontSize(typography.fontSize.sm),
     fontWeight: typography.fontWeight.medium,
-    marginBottom: spacing.xs
+    marginBottom: responsive.spacing(spacing.xs)
   },
   input: {
     ...components.input,
-    paddingVertical: spacing.md,
-    fontSize: typography.fontSize.base,
-    borderWidth: 1.5
+    paddingVertical: responsive.spacing(spacing.md),
+    fontSize: responsive.fontSize(typography.fontSize.base),
+    borderWidth: 1.5,
+    borderRadius: responsive.size(components.input.borderRadius)
   },
   errorText: {
-    fontSize: typography.fontSize.xs,
-    marginTop: spacing.xs,
+    fontSize: responsive.fontSize(typography.fontSize.xs),
+    marginTop: responsive.spacing(spacing.xs),
     fontWeight: typography.fontWeight.medium
   },
   helperText: {
-    fontSize: typography.fontSize.xs,
-    marginTop: spacing.xs
+    fontSize: responsive.fontSize(typography.fontSize.xs),
+    marginTop: responsive.spacing(spacing.xs)
   }
 });

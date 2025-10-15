@@ -71,11 +71,17 @@ router.get('/posts', authenticateByEmail, async (req, res) => {
                     content: comment.content,
                     date: formatDate(comment.createdAt),
                     likes: comment.likes,
-                    likedByUser: false // 클라이언트에서 처리
+                    likedByUser: false, // 클라이언트에서 처리
+                    hasSnowEffect: comment.hasSnowEffect || false,
+                    hasAutumnEffect: comment.hasAutumnEffect || false,
+                    hasRainEffect: comment.hasRainEffect || false,
+                    hasShootingStarEffect: comment.hasShootingStarEffect || false
                 })),
                 image: post.image,
                 hasSnowEffect: post.hasSnowEffect || false,
                 hasAutumnEffect: post.hasAutumnEffect || false,
+                hasRainEffect: post.hasRainEffect || false,
+                hasShootingStarEffect: post.hasShootingStarEffect || false,
                 likedByUser: false, // 클라이언트에서 처리
                 views: post.views
             }))
@@ -128,11 +134,17 @@ router.get('/posts/:postId', authenticateByEmail, async (req, res) => {
                     content: comment.content,
                     date: formatDate(comment.createdAt),
                     likes: comment.likes,
-                    likedByUser: comment.likedBy.includes(userId)
+                    likedByUser: comment.likedBy.includes(userId),
+                    hasSnowEffect: comment.hasSnowEffect || false,
+                    hasAutumnEffect: comment.hasAutumnEffect || false,
+                    hasRainEffect: comment.hasRainEffect || false,
+                    hasShootingStarEffect: comment.hasShootingStarEffect || false
                 })),
                 image: post.image,
                 hasSnowEffect: post.hasSnowEffect || false,
                 hasAutumnEffect: post.hasAutumnEffect || false,
+                hasRainEffect: post.hasRainEffect || false,
+                hasShootingStarEffect: post.hasShootingStarEffect || false,
                 likedByUser: post.likedBy.includes(userId),
                 views: post.views
             }
@@ -151,7 +163,7 @@ router.get('/posts/:postId', authenticateByEmail, async (req, res) => {
 // POST /api/community/posts - 게시글 작성
 router.post('/posts', authenticateByEmail, async (req, res) => {
     try {
-        const { title, content, image, hasSnowEffect, hasAutumnEffect } = req.body;
+        const { title, content, image, hasSnowEffect, hasAutumnEffect, hasRainEffect, hasShootingStarEffect } = req.body;
         const userId = req.user._id;
 
         if (!title || !content) {
@@ -178,7 +190,9 @@ router.post('/posts', authenticateByEmail, async (req, res) => {
             content,
             image: image || null,
             hasSnowEffect: hasSnowEffect || false,
-            hasAutumnEffect: hasAutumnEffect || false
+            hasAutumnEffect: hasAutumnEffect || false,
+            hasRainEffect: hasRainEffect || false,
+            hasShootingStarEffect: hasShootingStarEffect || false
         });
 
         res.status(201).json({
@@ -198,6 +212,8 @@ router.post('/posts', authenticateByEmail, async (req, res) => {
                 image: post.image,
                 hasSnowEffect: post.hasSnowEffect || false,
                 hasAutumnEffect: post.hasAutumnEffect || false,
+                hasRainEffect: post.hasRainEffect || false,
+                hasShootingStarEffect: post.hasShootingStarEffect || false,
                 likedByUser: false
             }
         });
@@ -260,7 +276,7 @@ router.post('/posts/:postId/like', authenticateByEmail, async (req, res) => {
 router.post('/posts/:postId/comments', authenticateByEmail, async (req, res) => {
     try {
         const { postId } = req.params;
-        const { content } = req.body;
+        const { content, hasSnowEffect, hasAutumnEffect, hasRainEffect, hasShootingStarEffect } = req.body;
         const userId = req.user._id;
 
         if (!content) {
@@ -292,7 +308,11 @@ router.post('/posts/:postId/comments', authenticateByEmail, async (req, res) => 
             authorName: user.username || user.name || '익명',
             content,
             likes: 0,
-            likedBy: []
+            likedBy: [],
+            hasSnowEffect: hasSnowEffect || false,
+            hasAutumnEffect: hasAutumnEffect || false,
+            hasRainEffect: hasRainEffect || false,
+            hasShootingStarEffect: hasShootingStarEffect || false
         };
 
         post.comments.push(comment);
@@ -309,7 +329,11 @@ router.post('/posts/:postId/comments', authenticateByEmail, async (req, res) => 
                 content: newComment.content,
                 date: formatDate(newComment.createdAt),
                 likes: newComment.likes,
-                likedByUser: false
+                likedByUser: false,
+                hasSnowEffect: newComment.hasSnowEffect || false,
+                hasAutumnEffect: newComment.hasAutumnEffect || false,
+                hasRainEffect: newComment.hasRainEffect || false,
+                hasShootingStarEffect: newComment.hasShootingStarEffect || false
             }
         });
 

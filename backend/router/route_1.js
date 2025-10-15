@@ -536,6 +536,51 @@ router.post('/user-offline', async (req, res) => {
     }
 });
 
+// GET /api/user/details - 사용자 상세 정보 조회
+router.get('/user/details', async (req, res) => {
+    try {
+        const { email } = req.query;
+        
+        console.log('📋 사용자 정보 조회 요청:', email);
+        
+        if (!email) {
+            return res.status(400).json({ success: false, message: '이메일이 필요합니다.' });
+        }
+
+        const user = await User.findOne({ email });
+        
+        if (!user) {
+            console.log('❌ 사용자를 찾을 수 없음:', email);
+            return res.status(404).json({ success: false, message: '사용자를 찾을 수 없습니다.' });
+        }
+
+        // 사용자가 가입한 스터디 그룹 조회
+        let studyGroups = [];
+        try {
+            studyGroups = await StudyGroup.find({ 
+                members: { $elemMatch: { email: email } } 
+            }).select('name description');
+        } catch (err) {
+            console.error('스터디 그룹 조회 오류:', err);
+        }
+
+        console.log('✅ 사용자 정보 조회 성공:', email);
+        
+        res.json({
+            success: true,
+            user: {
+                email: user.email,
+                name: user.name || user.username,
+                profileImage: user.profileImage,
+                studyGroups: studyGroups
+            }
+        });
+    } catch (error) {
+        console.error('❌ 사용자 정보 조회 오류:', error);
+        res.status(500).json({ success: false, message: '서버 오류가 발생했습니다.', error: error.message });
+    }
+});
+
 // GET /api/auth/online-status - 모든 사용자의 온라인 상태 조회
 router.get('/online-status', async (req, res) => {
     try {

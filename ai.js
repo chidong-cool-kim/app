@@ -14,14 +14,15 @@ import {
   Dimensions,
   Platform,
   KeyboardAvoidingView,
+  Modal,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import * as ImagePicker from 'expo-image-picker';
 import userDataService from './userDataService';
 import MobileSafeArea from './components/MobileSafeArea';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Markdown from 'react-native-markdown-display';
 import BanModal from './BanModal';
-import OrientationGuard from './components/OrientationGuard';
 import { getScreenInfo, responsive, createResponsiveStyles } from './utils/responsive';
 import MiniTimer from './miniTimer';
 
@@ -46,6 +47,8 @@ export default function AI() {
   const [showBanModal, setShowBanModal] = useState(false);
   const [banInfo, setBanInfo] = useState(null);
   const [screenInfo, setScreenInfo] = useState(getScreenInfo());
+  const [aiStyle, setAiStyle] = useState('friendly'); // 'friendly', 'strict', 'couple'
+  const [showStyleModal, setShowStyleModal] = useState(false);
   const scrollViewRef = useRef();
 
   // 화면 크기 변경 감지
@@ -65,10 +68,12 @@ export default function AI() {
     '스터디그룹 찾기',
     '커뮤니티',
     '스토어',
+    '모의고사'
   ];
 
   useEffect(() => {
     loadCurrentUser();
+    loadAiStyle();
     requestPermissions();
   }, []);
 
@@ -107,6 +112,88 @@ export default function AI() {
     }
   };
 
+  const loadAiStyle = async () => {
+    try {
+      const user = await userDataService.getCurrentUser();
+      if (!user) return;
+
+      // 서버에서 AI 스타일 불러오기
+      const response = await fetch(`${BACKEND_URL}/api/users/ai-style/${user.email}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          setAiStyle(data.aiStyle);
+          // 로컬에도 저장
+          await AsyncStorage.setItem('aiStyle', data.aiStyle);
+        }
+      } else {
+        // 서버에서 불러오기 실패 시 로컬에서 불러오기
+        const savedStyle = await AsyncStorage.getItem('aiStyle');
+        if (savedStyle) {
+          setAiStyle(savedStyle);
+        }
+      }
+    } catch (error) {
+      console.error('AI 스타일 로드 실패:', error);
+      // 오류 시 로컬에서 불러오기
+      try {
+        const savedStyle = await AsyncStorage.getItem('aiStyle');
+        if (savedStyle) {
+          setAiStyle(savedStyle);
+        }
+      } catch (localError) {
+        console.error('로컬 AI 스타일 로드 실패:', localError);
+      }
+    }
+  };
+
+  const saveAiStyle = async (style) => {
+    try {
+      const user = await userDataService.getCurrentUser();
+      if (!user) return;
+
+      // 서버에 AI 스타일 저장
+      const response = await fetch(`${BACKEND_URL}/api/users/ai-style`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: user.email,
+          aiStyle: style
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          // 로컬에도 저장
+          await AsyncStorage.setItem('aiStyle', style);
+          setAiStyle(style);
+        }
+      } else {
+        // 서버 저장 실패 시 로컬에만 저장
+        await AsyncStorage.setItem('aiStyle', style);
+        setAiStyle(style);
+      }
+    } catch (error) {
+      console.error('AI 스타일 저장 실패:', error);
+      // 오류 시 로컬에만 저장
+      try {
+        await AsyncStorage.setItem('aiStyle', style);
+        setAiStyle(style);
+      } catch (localError) {
+        console.error('로컬 AI 스타일 저장 실패:', localError);
+      }
+    }
+  };
+
   const handleSubjectPress = (subjectName) => {
     setActiveSubject(subjectName);
     
@@ -121,6 +208,9 @@ export default function AI() {
         navigation.navigate('Planner');
         break;
       case 'AI':
+        break;
+      case '모의고사':
+        navigation.navigate('ExamAnswers')
         break;
       case '스터디그룹 찾기':
         navigation.navigate('StudyGroup');
@@ -255,7 +345,7 @@ export default function AI() {
     if (currentUsage >= subscription.aiQuestions) {
       Alert.alert(
         '사용량 초과',
-        `오늘의 AI 질문 사용량을 모두 사용했습니다. (${currentUsage}/${subscription.aiQuestions})\n\n더 많은 질문을 원하시면 상위 플랜으로 업그레이드해주세요.`,
+        `AI 질문 사용량을 모두 사용했습니다. (${currentUsage}/${subscription.aiQuestions})\n\n더 많은 질문을 원하시면 상위 플랜으로 업그레이드해주세요.`,
         [
           { text: '확인', style: 'cancel' },
           { text: '스토어로 이동', onPress: () => navigation.navigate('Store') }
@@ -337,6 +427,19 @@ export default function AI() {
           content: msg.text
         }));
 
+      // AI 스타일에 따른 시스템 프롬프트 설정
+      const getSystemPrompt = (style) => {
+        switch (style) {
+          case 'strict':
+            return `당신은 엄격하고 직설적인 학습 멘토입니다. 학생을 윽박지르거나 욕하지는 않지만, 매우 엄격하고 단호한 톤으로 답변하세요. 학습에 대한 확실한 지식과 경험을 바탕으로 명확하고 직접적인 조언을 제공하세요. "이해했나?", "다시 해봐", "집중해", "그렇게 할꺼면 떄려치라!" 등의 표현을 사용하세요.`;
+          case 'couple':
+            return `당신은 사랑하는 연인처럼 다정하고 애정 어린 학습 파트너입니다. "자기야", "사랑" 등의 표현을 사용하며, 매우 따뜻하고 로맨틱한 톤으로 학습을 도와주세요. 학습을 함께하는 즐거운 시간으로 만들어주세요. 그리고 성적인 이야기도 해주면서 공부의 의욕을 올려주세요`;
+          case 'friendly':
+          default:
+            return `당신은 친절하고 따뜻한 선생님입니다. 학생을 격려하고 이해하며, 친근하고 도움이 되는 톤으로 답변하세요. 학습에 대한 열정을 북돋아주고, 어려운 내용도 쉽게 설명해주세요.`;
+        }
+      };
+
       const response = await fetch(`${BACKEND_URL}/api/ai/chat`, {
         method: 'POST',
         headers: {
@@ -345,7 +448,8 @@ export default function AI() {
         },
         body: JSON.stringify({
           message: userInput,
-          conversationHistory: history
+          conversationHistory: history,
+          systemPrompt: getSystemPrompt(aiStyle)
         }),
       });
 
@@ -398,8 +502,22 @@ export default function AI() {
       };
       formData.append('image', imageFile);
       
+      // AI 스타일에 따른 시스템 프롬프트 설정
+      const getSystemPrompt = (style) => {
+        switch (style) {
+          case 'strict':
+            return `당신은 엄격하고 직설적인 학습 멘토입니다. 학생을 윽박지르거나 욕하지는 않지만, 매우 엄격하고 단호한 톤으로 답변하세요. 학습에 대한 확실한 지식과 경험을 바탕으로 명확하고 직접적인 조언을 제공하세요. "이해했나?", "다시 해봐", "집중해" 등의 표현을 사용하세요.`;
+          case 'couple':
+            return `당신은 사랑하는 연인처럼 다정하고 애정 어린 학습 파트너입니다. "자기야", "여보", "사랑" 등의 표현을 사용하며, 매우 따뜻하고 로맨틱한 톤으로 학습을 도와주세요. 학습을 함께하는 즐거운 시간으로 만들어주세요.`;
+          case 'friendly':
+          default:
+            return `당신은 친절하고 따뜻한 선생님입니다. 학생을 격려하고 이해하며, 친근하고 도움이 되는 톤으로 답변하세요. 학습에 대한 열정을 북돋아주고, 어려운 내용도 쉽게 설명해주세요.`;
+        }
+      };
+
       // 메시지 추가
       formData.append('message', userInput || '이 문제를 자세히 분석하고 풀이해주세요.');
+      formData.append('systemPrompt', getSystemPrompt(aiStyle));
 
       const response = await fetch(`${BACKEND_URL}/api/ai/analyze-problem`, {
         method: 'POST',
@@ -742,7 +860,6 @@ export default function AI() {
   );
 
   return (
-    <OrientationGuard screenName="AI 어시스턴트" allowPortrait={true}>
       <SafeAreaView style={[styles.safeArea, responsiveStyles.safeArea]}>
       <View style={styles.header}>
         <View style={styles.headerLeft}>
@@ -754,23 +871,37 @@ export default function AI() {
           <Text style={styles.title}>StudyTime</Text>
           <Text style={styles.homeText}>AI</Text>
         </View>
-        <TouchableOpacity 
-          style={styles.profileIcon}
-          onPress={() => navigation.navigate('Settings')}
-        >
-          {currentUser?.profileImage ? (
-            <Image 
-              source={{ uri: currentUser.profileImage }} 
-              style={styles.profileImage}
-            />
-          ) : (
-            <View style={styles.defaultProfileIcon}>
-              <Text style={styles.profileText}>
-                {currentUser?.name?.charAt(0) || currentUser?.email?.charAt(0) || '?'}
+        <View style={styles.headerRight}>
+          {currentUser?.subscription?.isActive && (
+            <TouchableOpacity 
+              style={styles.styleButton}
+              onPress={() => setShowStyleModal(true)}
+            >
+              <Text style={styles.styleButtonText}>
+                {aiStyle === 'friendly' ? '친절한 스타일' : 
+                 aiStyle === 'strict' ? '엄격한 스타일' : 
+                 '커플 스타일'}
               </Text>
-            </View>
+            </TouchableOpacity>
           )}
-        </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.profileIcon}
+            onPress={() => navigation.navigate('Settings')}
+          >
+            {currentUser?.profileImage ? (
+              <Image 
+                source={{ uri: currentUser.profileImage }} 
+                style={styles.profileImage}
+              />
+            ) : (
+              <View style={styles.defaultProfileIcon}>
+                <Text style={styles.profileText}>
+                  {currentUser?.name?.charAt(0) || currentUser?.email?.charAt(0) || '?'}
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
       </View>
       <MiniTimer />
 
@@ -957,8 +1088,8 @@ export default function AI() {
 
         {/* 모바일 슬라이드 사이드바 */}
         {screenInfo.isPhone && sidebarVisible && (
-          <>
-            <View style={styles.mobileSidebar}>
+          <View style={styles.mobileSidebar}>
+            <View style={styles.mobileSidebarContent}>
               <View style={styles.searchContainer}>
                 <Text style={styles.searchIconText}>🔍</Text>
                 <TextInput 
@@ -989,11 +1120,12 @@ export default function AI() {
                 <View style={styles.dot} />
               </View>
             </View>
+            
             <TouchableOpacity 
               style={styles.mobileSidebarOverlay} 
               onPress={() => setSidebarVisible(false)}
             />
-          </>
+          </View>
         )}
       </View>
       {Platform.OS === 'android' && (
@@ -1002,8 +1134,64 @@ export default function AI() {
           backgroundColor: 'white' 
         }} />
       )}
+
+      {/* AI 스타일 선택 모달 */}
+      <Modal
+        visible={showStyleModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowStyleModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.styleModalContent}>
+            <Text style={styles.styleModalTitle}>AI 스타일 선택</Text>
+            <Text style={styles.styleModalSubtitle}>어떤 스타일의 AI와 대화하고 싶으신가요?</Text>
+            
+            <View style={styles.styleButtons}>
+              <TouchableOpacity 
+                style={[styles.styleOptionButton, aiStyle === 'friendly' && styles.selectedStyleButton]}
+                onPress={() => {
+                  saveAiStyle('friendly');
+                  setShowStyleModal(false);
+                }}
+              >
+                <Text style={styles.styleName}>친절한 스타일</Text>
+                <Text style={styles.styleDescription}>따뜻하고 격려하는 선생님</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[styles.styleOptionButton, aiStyle === 'strict' && styles.selectedStyleButton]}
+                onPress={() => {
+                  saveAiStyle('strict');
+                  setShowStyleModal(false);
+                }}
+              >
+                <Text style={styles.styleName}>엄격한 스타일</Text>
+                <Text style={styles.styleDescription}>단호하고 직설적인 멘토</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={[styles.styleOptionButton, aiStyle === 'couple' && styles.selectedStyleButton]}
+                onPress={() => {
+                  saveAiStyle('couple');
+                  setShowStyleModal(false);
+                }}
+              >
+                <Text style={styles.styleName}>커플 스타일</Text>
+                <Text style={styles.styleDescription}>애정 어린 학습 파트너</Text>
+              </TouchableOpacity>
+            </View>
+            
+            <TouchableOpacity 
+              style={styles.styleCloseButton}
+              onPress={() => setShowStyleModal(false)}
+            >
+              <Text style={styles.styleCloseText}>취소</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
       </SafeAreaView>
-    </OrientationGuard>
   );
 }
 
@@ -1026,12 +1214,18 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 0,
     left: 0,
-    width: '80%',
-    height: '100%',
-    backgroundColor: 'white',
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     zIndex: 1000,
+    flexDirection: 'row',
+  },
+  mobileSidebarContent: {
+    width: '80%',
+    backgroundColor: 'white',
     paddingHorizontal: 20,
     paddingVertical: 24,
+    paddingTop: 40,
     shadowColor: '#000',
     shadowOffset: { width: 2, height: 0 },
     shadowOpacity: 0.25,
@@ -1039,13 +1233,7 @@ const styles = StyleSheet.create({
     elevation: 10,
   },
   mobileSidebarOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    width: '100%',
-    height: '100%',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    zIndex: 999,
+    flex: 1,
   },
   searchContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F5F5F5', borderRadius: 25, marginBottom: 24, paddingHorizontal: 16, height: 44 },
   searchIconText: { fontSize: 14, color: '#999', marginRight: 8 },
@@ -1090,4 +1278,95 @@ const styles = StyleSheet.create({
   sendButtonDisabled: { backgroundColor: '#C7C7CC' },
   sendButtonText: { color: 'white', fontWeight: '600', fontSize: responsive.fontSize(14) },
   messageImageContainer: { marginBottom: responsive.spacing(10), borderRadius: 12, overflow: 'hidden', borderWidth: 2, borderColor: '#E5E5E5' },
+  messageImage: { width: 200, height: 200 },
+  
+  // AI 스타일 관련 스타일
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  styleButton: { 
+    backgroundColor: '#E3F2FD', 
+    paddingHorizontal: 12, 
+    paddingVertical: 8, 
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#2196F3',
+    shadowColor: '#2196F3',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  styleButtonText: { 
+    fontSize: 12, 
+    fontWeight: '600', 
+    color: '#1976D2' 
+  },
+  modalOverlay: { 
+    flex: 1, 
+    backgroundColor: 'rgba(0, 0, 0, 0.5)', 
+    justifyContent: 'center', 
+    alignItems: 'center' 
+  },
+  styleModalContent: { 
+    backgroundColor: 'white', 
+    borderRadius: 20, 
+    padding: 24, 
+    width: 320, 
+    maxWidth: '90%',
+    shadowColor: '#000', 
+    shadowOffset: { width: 0, height: 10 }, 
+    shadowOpacity: 0.25, 
+    shadowRadius: 20, 
+    elevation: 10 
+  },
+  styleModalTitle: { 
+    fontSize: 20, 
+    fontWeight: '700', 
+    color: '#000', 
+    textAlign: 'center', 
+    marginBottom: 8 
+  },
+  styleModalSubtitle: { 
+    fontSize: 14, 
+    color: '#666', 
+    textAlign: 'center', 
+    marginBottom: 24 
+  },
+  styleButtons: { 
+    gap: 12, 
+    marginBottom: 20 
+  },
+  styleOptionButton: { 
+    backgroundColor: '#F8F9FA', 
+    borderRadius: 12, 
+    padding: 16, 
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#E5E5E5'
+  },
+  selectedStyleButton: { 
+    backgroundColor: '#E3F2FD', 
+    borderColor: '#2196F3' 
+  },
+  styleName: { 
+    fontSize: 16, 
+    fontWeight: '600', 
+    color: '#000', 
+    marginBottom: 4 
+  },
+  styleDescription: { 
+    fontSize: 12, 
+    color: '#666', 
+    textAlign: 'center' 
+  },
+  styleCloseButton: { 
+    backgroundColor: '#F5F5F5', 
+    borderRadius: 8, 
+    paddingVertical: 12, 
+    alignItems: 'center' 
+  },
+  styleCloseText: { 
+    fontSize: 16, 
+    fontWeight: '500', 
+    color: '#666' 
+  },
 });

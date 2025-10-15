@@ -5,6 +5,7 @@ import {
   Dimensions,
   StyleSheet,
 } from 'react-native';
+import Svg, { Path, Defs, LinearGradient as SvgLinearGradient, Stop } from 'react-native-svg';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -141,6 +142,24 @@ const SnowEffect = ({ active = false, intensity = 50, duration = 3000 }) => {
 
   return (
     <View style={styles.container} pointerEvents="none">
+      {/* 겨울 그라데이션 배경 */}
+      <Svg width="100%" height="100%" style={styles.gradientBackground}>
+        <Defs>
+          <SvgLinearGradient id="snowGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+            <Stop offset="0%" stopColor="#E0F2F7" stopOpacity="0.4" />
+            <Stop offset="25%" stopColor="#B3E5FC" stopOpacity="0.35" />
+            <Stop offset="50%" stopColor="#81D4FA" stopOpacity="0.3" />
+            <Stop offset="75%" stopColor="#4FC3F7" stopOpacity="0.35" />
+            <Stop offset="100%" stopColor="#29B6F6" stopOpacity="0.4" />
+          </SvgLinearGradient>
+        </Defs>
+        <Path
+          d={`M0,0 L${screenWidth},0 L${screenWidth},${screenHeight} L0,${screenHeight} Z`}
+          fill="url(#snowGradient)"
+        />
+      </Svg>
+      
+      {/* 눈송이들 */}
       {snowflakes.map((snowflake) => (
         snowflake && (
           <Animated.View
@@ -177,7 +196,15 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    zIndex: 1000,
+    zIndex: 1,
+  },
+  gradientBackground: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 1,
   },
   snowflake: {
     position: 'absolute',
@@ -190,6 +217,7 @@ const styles = StyleSheet.create({
     elevation: 5,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.8)',
+    zIndex: 2,
   },
 });
 

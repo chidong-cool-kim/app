@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { colors, spacing, borderRadius, shadows, components } from '../../styles/designSystem';
+import { responsive } from '../../utils/responsive';
 
 export default function Card({ 
   children, 
@@ -20,15 +21,15 @@ export default function Card({
   const getCardStyle = () => {
     const baseStyle = {
       backgroundColor: theme.backgroundColor,
-      borderRadius: borderRadius.lg
+      borderRadius: responsive.size(borderRadius.lg)
     };
 
-    // Padding variations
+    // Padding variations with responsive values
     const paddingStyles = {
       none: {},
-      small: { padding: spacing.sm },
-      default: { padding: spacing.lg },
-      large: { padding: spacing.xl }
+      small: { padding: responsive.spacing(spacing.sm) },
+      default: { padding: responsive.spacing(spacing.lg) },
+      large: { padding: responsive.spacing(spacing.xl) }
     };
 
     // Variant styles

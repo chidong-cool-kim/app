@@ -33,6 +33,8 @@ export default function Settings() {
     snowEffect: false,
     autumnEffect: false,
     cherryBlossomEffect: false,
+    rainEffect: false,
+    shootingStarEffect: false,
     isPremiumUser: false,
     effectIntensity: 30,
   });
@@ -215,6 +217,12 @@ export default function Settings() {
         case 'cherryBlossom':
           message = '벚꽃 효과가 활성화되었습니다!';
           break;
+        case 'rain':
+          message = '비 내리는 효과가 활성화되었습니다!';
+          break;
+        case 'shootingStar':
+          message = '유성우 효과가 활성화되었습니다!';
+          break;
       }
       
       Alert.alert('설정 완료', message);
@@ -277,45 +285,8 @@ export default function Settings() {
     );
   }
 
-  const responsiveStyles = createResponsiveStyles(
-    {},
-    {
-      container: {
-        flex: 1,
-        backgroundColor: '#f5f5f5',
-      },
-      header: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingHorizontal: responsive.spacing(16),
-        paddingVertical: responsive.spacing(12),
-        backgroundColor: '#fff',
-        borderBottomWidth: 1,
-        borderBottomColor: '#e0e0e0',
-      },
-      headerTitle: {
-        fontSize: responsive.fontSize(18),
-        fontWeight: '600',
-        color: '#333',
-      },
-      section: {
-        backgroundColor: '#fff',
-        marginVertical: responsive.spacing(8),
-        paddingHorizontal: responsive.spacing(16),
-      },
-      sectionTitle: {
-        fontSize: responsive.fontSize(14),
-        fontWeight: '600',
-        color: '#666',
-        marginTop: responsive.spacing(16),
-        marginBottom: responsive.spacing(8),
-      },
-    }
-  );
-
   return (
-    <MobileSafeArea style={[styles.container, responsiveStyles.container]} backgroundColor="#f5f5f5">
+    <MobileSafeArea style={styles.container} backgroundColor="#f5f5f5">
       {/* 헤더 */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
@@ -396,8 +367,8 @@ export default function Settings() {
               onPress={() => handleEffectChange('none')}
             >
               <View style={styles.effectOptionContent}>
-                <View style={[styles.radioButton, (!effectSettings.snowEffect && !effectSettings.autumnEffect && !effectSettings.cherryBlossomEffect) && styles.radioButtonSelected]}>
-                  {(!effectSettings.snowEffect && !effectSettings.autumnEffect && !effectSettings.cherryBlossomEffect) && <View style={styles.radioButtonInner} />}
+                <View style={[styles.radioButton, (!effectSettings.snowEffect && !effectSettings.autumnEffect && !effectSettings.cherryBlossomEffect && !effectSettings.rainEffect && !effectSettings.shootingStarEffect) && styles.radioButtonSelected]}>
+                  {(!effectSettings.snowEffect && !effectSettings.autumnEffect && !effectSettings.cherryBlossomEffect && !effectSettings.rainEffect && !effectSettings.shootingStarEffect) && <View style={styles.radioButtonInner} />}
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.settingText}>🚫 효과 없음</Text>
@@ -437,7 +408,45 @@ export default function Settings() {
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.settingText}>🍂 가을 나뭇잎 효과</Text>
-                  <Text style={styles.settingDescription}>가을 분위기의 나뭇잎이 흔들리며 떨어집니다</Text>
+                  <Text style={[styles.settingValue, { fontSize: 14, marginTop: 4 }]}>
+                    가을 분위기의 나뭇잎이 흔들리며 떨어집니다
+                  </Text>
+                </View>
+              </View>
+            </TouchableOpacity>
+
+            {/* 비 효과 */}
+            <TouchableOpacity 
+              style={styles.effectOption}
+              onPress={() => handleEffectChange('rain')}
+            >
+              <View style={styles.effectOptionContent}>
+                <View style={[styles.radioButton, effectSettings.rainEffect && styles.radioButtonSelected]}>
+                  {effectSettings.rainEffect && <View style={styles.radioButtonInner} />}
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.settingText}>🌧️ 비 내리는 효과</Text>
+                  <Text style={[styles.settingValue, { fontSize: 14, marginTop: 4 }]}>
+                    직선 형태로 뚝뚝 떨어지는 빗줄기 효과
+                  </Text>
+                </View>
+              </View>
+            </TouchableOpacity>
+
+            {/* 유성우 효과 */}
+            <TouchableOpacity 
+              style={styles.effectOption}
+              onPress={() => handleEffectChange('shootingStar')}
+            >
+              <View style={styles.effectOptionContent}>
+                <View style={[styles.radioButton, effectSettings.shootingStarEffect && styles.radioButtonSelected]}>
+                  {effectSettings.shootingStarEffect && <View style={styles.radioButtonInner} />}
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.settingText}>🌠 유성우 효과</Text>
+                  <Text style={[styles.settingValue, { fontSize: 14, marginTop: 4 }]}>
+                    보라빛 밤하늘에 별똥별이 흐르는 효과
+                  </Text>
                 </View>
               </View>
             </TouchableOpacity>

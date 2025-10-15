@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -19,6 +19,7 @@ import MobileSafeArea from './components/MobileSafeArea';
 import OrientationGuard from './components/OrientationGuard';
 import { getScreenInfo, responsive } from './utils/responsive';
 import { useGmailAuth } from './useGmailAuth';
+import { useGoogleOAuth } from './hooks/useGoogleOAuth';
 import { apiCall, API_ENDPOINTS } from './config/api';
 
 import kakaoLogo from './assets/kakaoLogo.png';
@@ -29,7 +30,7 @@ import appleLogo from './assets/appleLogo.webp';
 const { width, height } = Dimensions.get('window');
 
 export default function Login() {
-    const screenInfo = getScreenInfo();
+    const [screenInfo, setScreenInfo] = useState(getScreenInfo());
     const isLandscape = screenInfo.isLandscape && screenInfo.isPhone;
     const navigation = useNavigation();
     const [email, setEmail] = useState('');
@@ -52,6 +53,25 @@ export default function Login() {
         codeSent,
         clearError
     } = useGmailAuth();
+
+    // Google OAuth 훅 사용
+    const {
+        userInfo: googleUserInfo,
+        loading: googleLoading,
+        error: googleError,
+        signInWithGoogle,
+        signOut: googleSignOut,
+        checkStoredAuth: checkGoogleAuth,
+        clearError: clearGoogleError,
+    } = useGoogleOAuth();
+
+    // 화면 크기 변경 감지
+    useEffect(() => {
+        const subscription = Dimensions.addEventListener('change', () => {
+            setScreenInfo(getScreenInfo());
+        });
+        return () => subscription?.remove();
+    }, []);
 
     useEffect(() => {
         const checkAuthAndNavigate = async () => {
@@ -118,6 +138,50 @@ export default function Login() {
             Alert.alert('인증코드 발송', 'Gmail로 인증코드가 발송되었습니다. 확인해주세요.');
         }
     }, [codeSent]);
+
+    // Google OAuth 에러 처리
+    useEffect(() => {
+        if (googleError) {
+            Alert.alert('Google 로그인 오류', googleError, [
+                { text: '확인', onPress: clearGoogleError }
+            ]);
+        }
+    }, [googleError]);
+
+    // Google OAuth 성공 처리
+    useEffect(() => {
+        const handleGoogleAuthSuccess = async () => {
+            if (googleUserInfo && !isInitialLoad) {
+                console.log('Google OAuth 성공! 사용자 정보:', googleUserInfo);
+                
+                // 닉네임이 없는 경우
+                if (!googleUserInfo.username) {
+                    Alert.alert(
+                        '닉네임 설정',
+                        '사용할 닉네임을 입력해주세요.',
+                        [
+                            {
+                                text: '확인',
+                                onPress: () => {
+                                    navigation.navigate('Username', { 
+                                        userInfo: googleUserInfo,
+                                        fromGoogleAuth: true
+                                    });
+                                }
+                            }
+                        ]
+                    );
+                } else {
+                    // 닉네임이 있는 경우 바로 메인으로
+                    Alert.alert('로그인 성공', `환영합니다, ${googleUserInfo.username}님!`, [
+                        { text: '확인', onPress: () => navigation.navigate('Main') }
+                    ]);
+                }
+            }
+        };
+        
+        handleGoogleAuthSuccess();
+    }, [googleUserInfo, isInitialLoad]);
 
     const handleSendCode = async () => {
         if (!email.trim()) {
@@ -287,24 +351,83 @@ export default function Login() {
         navigation.navigate('SignUp');
     };
 
+    // 반응형 스타일 선택
+    const getStyles = () => {
+        if (screenInfo.isPhone) {
+            return baseStyles; // 모바일은 기본 스타일 + 모바일 스타일 사용
+        } else if (screenInfo.isTablet) {
+            return baseStyles; // 태블릿도 기본 스타일 사용 (태블릿 전용 스타일은 조건부로 적용)
+        }
+        return baseStyles;
+    };
+    
+    const styles = getStyles();
+
     return (
         <OrientationGuard screenName="로그인" allowPortrait={true}>
             <MobileSafeArea style={styles.safeArea} backgroundColor="#ffffff">
-            <View style={[styles.mainContent, screenInfo.isPhone && !isLandscape && styles.mainContentMobile, isLandscape && styles.mainContentLandscape]}>
+            {/* 상단 바 */}
+            <View style={[
+                styles.position1,
+                screenInfo.isPhone && !isLandscape && styles.position1Mobile
+            ]}>
+                <View style={[
+                    styles.hr,
+                    screenInfo.isPhone && !isLandscape && styles.hrMobile
+                ]}></View>
+            </View>
+            
+            <View style={[
+                styles.mainContent, 
+                screenInfo.isPhone && !isLandscape && styles.mainContentMobile, 
+                screenInfo.isTablet && styles.mainContentTablet,
+                isLandscape && styles.mainContentLandscape
+            ]}>
                 {/* 로고 영역 - 모바일에서 숨김 */}
                 {!(screenInfo.isPhone && !isLandscape) && (
-                    <View style={[styles.leftSection, isLandscape && styles.leftSectionLandscape]}>
-                        <Image source={require('./assets/s.png')} style={[styles.img, isLandscape && styles.imgLandscape]} resizeMode="contain" fadeDuration={0} />
+                    <View style={[
+                        styles.leftSection, 
+                        screenInfo.isTablet && styles.leftSectionTablet,
+                        isLandscape && styles.leftSectionLandscape
+                    ]}>
+                        <Image 
+                            source={require('./assets/s.png')} 
+                            style={[
+                                styles.img, 
+                                screenInfo.isTablet && styles.imgTablet,
+                                isLandscape && styles.imgLandscape
+                            ]} 
+                            resizeMode="contain" 
+                            fadeDuration={0} 
+                        />
                     </View>
                 )}
 
                 {/* 로그인 폼 */}
-                <View style={[styles.rightSection, screenInfo.isPhone && !isLandscape && styles.rightSectionMobile, isLandscape && styles.rightSectionLandscape]}>
-                    <View style={[styles.formContainer, screenInfo.isPhone && !isLandscape && styles.formContainerMobile, isLandscape && styles.formContainerLandscape]}>
-                        <Text style={[styles.title, screenInfo.isPhone && styles.titleMobile]}>Log In</Text>
+                <View style={[
+                    styles.rightSection, 
+                    screenInfo.isPhone && !isLandscape && styles.rightSectionMobile,
+                    screenInfo.isTablet && styles.rightSectionTablet,
+                    isLandscape && styles.rightSectionLandscape
+                ]}>
+                    <View style={[
+                        styles.formContainer, 
+                        screenInfo.isPhone && !isLandscape && styles.formContainerMobile,
+                        screenInfo.isTablet && styles.formContainerTablet,
+                        isLandscape && styles.formContainerLandscape
+                    ]}>
+                        <Text style={[
+                            styles.title, 
+                            screenInfo.isPhone && styles.titleMobile,
+                            screenInfo.isTablet && styles.titleTablet
+                        ]}>Log In</Text>
                         
                         <TextInput
-                            style={[styles.input, screenInfo.isPhone && styles.inputMobile]}
+                            style={[
+                                styles.input, 
+                                screenInfo.isPhone && styles.inputMobile,
+                                screenInfo.isTablet && styles.inputTablet
+                            ]}
                             placeholder="이메일을 입력하세요"
                             placeholderTextColor="#aaa"
                             value={email}
@@ -314,7 +437,11 @@ export default function Login() {
                         />
                         
                         <TextInput
-                            style={[styles.input, screenInfo.isPhone && styles.inputMobile]}
+                            style={[
+                                styles.input, 
+                                screenInfo.isPhone && styles.inputMobile,
+                                screenInfo.isTablet && styles.inputTablet
+                            ]}
                             placeholder="비밀번호를 입력하세요"
                             placeholderTextColor="#aaa"
                             value={password}
@@ -326,34 +453,69 @@ export default function Login() {
                             <Text style={styles.signupLink}>계정이 없으신가요?</Text>
                         </TouchableOpacity>
                         
-                        <TouchableOpacity style={[styles.loginButton, screenInfo.isPhone && styles.loginButtonMobile]} onPress={finishLogin}>
+                        <TouchableOpacity style={[
+                            styles.loginButton, 
+                            screenInfo.isPhone && styles.loginButtonMobile,
+                            screenInfo.isTablet && styles.loginButtonTablet
+                        ]} onPress={finishLogin}>
                             <Text style={styles.loginButtonText}>로그인</Text>
                         </TouchableOpacity>
 
                         {/* OR 구분선 */}
-                        <View style={[styles.dividerContainer, screenInfo.isPhone && styles.dividerContainerMobile]}>
+                        <View style={[
+                            styles.dividerContainer, 
+                            screenInfo.isPhone && styles.dividerContainerMobile,
+                            screenInfo.isTablet && styles.dividerContainerTablet
+                        ]}>
                             <View style={styles.dividerLine} />
                             <Text style={styles.dividerText}>OR</Text>
                             <View style={styles.dividerLine} />
                         </View>
 
                         {/* 소셜 로그인 버튼들 */}
+                        {/* Google OAuth 버튼 */}
                         <TouchableOpacity
-                            style={[styles.socialButton, screenInfo.isPhone && styles.socialButtonMobile]}
+                            style={[
+                                styles.socialButton, 
+                                screenInfo.isPhone && styles.socialButtonMobile,
+                                screenInfo.isTablet && styles.socialButtonTablet
+                            ]}
+                            onPress={signInWithGoogle}
+                            disabled={googleLoading}
+                        >
+                            {googleLoading ? (
+                                <ActivityIndicator size="small" color="#333" />
+                            ) : (
+                                <View style={styles.socialButtonContent}>
+                                    <Image source={googleLogo} style={styles.socialIcon} resizeMode="contain" />
+                                    <Text style={styles.socialButtonText}>Sign in with Google</Text>
+                                </View>
+                            )}
+                        </TouchableOpacity>
+
+                        {/* Gmail 인증코드 방식 (기존 방식 - 숨김 처리 가능) */}
+                        {false && (
+                        <TouchableOpacity
+                            style={[
+                                styles.socialButton, 
+                                screenInfo.isPhone && styles.socialButtonMobile,
+                                screenInfo.isTablet && styles.socialButtonTablet
+                            ]}
                             onPress={showCodeInput ? handleVerifyCode : handleSendCode}
                             disabled={gmailLoading}
                         >
                             {gmailLoading ? (
                                 <ActivityIndicator size="small" color="#333" />
-                                ) : (
+                            ) : (
                                 <View style={styles.socialButtonContent}>
                                     <Image source={googleLogo} style={styles.socialIcon} resizeMode="contain" />
                                     <Text style={styles.socialButtonText}>
-                                        {showCodeInput ? 'Gmail 인증코드 확인' : 'Start with Google'}
+                                        {showCodeInput ? 'Gmail 인증코드 확인' : 'Gmail 인증코드 로그인'}
                                     </Text>
                                 </View>
                             )}
                         </TouchableOpacity>
+                        )}
 
                         {showCodeInput && (
                             <View style={styles.codeInputWrapper}>
@@ -375,21 +537,33 @@ export default function Login() {
                             </View>
                         )}
 
-                        <TouchableOpacity style={[styles.socialButton, screenInfo.isPhone && styles.socialButtonMobile]}>
+                        <TouchableOpacity style={[
+                            styles.socialButton, 
+                            screenInfo.isPhone && styles.socialButtonMobile,
+                            screenInfo.isTablet && styles.socialButtonTablet
+                        ]}>
                             <View style={styles.socialButtonContent}>
                                 <Image source={kakaoLogo} style={styles.socialIcon} resizeMode="contain" />
                                 <Text style={styles.socialButtonText}>Start with Kakao</Text>
                             </View>
                         </TouchableOpacity>
 
-                        <TouchableOpacity style={[styles.socialButton, screenInfo.isPhone && styles.socialButtonMobile]}>
+                        <TouchableOpacity style={[
+                            styles.socialButton, 
+                            screenInfo.isPhone && styles.socialButtonMobile,
+                            screenInfo.isTablet && styles.socialButtonTablet
+                        ]}>
                             <View style={styles.socialButtonContent}>
                                 <Image source={appleLogo} style={styles.appleSocialIcon} resizeMode="contain" />
                                 <Text style={styles.socialButtonText}>Start with Apple</Text>
                             </View>
                         </TouchableOpacity>
 
-                        <TouchableOpacity style={[styles.socialButton, screenInfo.isPhone && styles.socialButtonMobile]}>
+                        <TouchableOpacity style={[
+                            styles.socialButton, 
+                            screenInfo.isPhone && styles.socialButtonMobile,
+                            screenInfo.isTablet && styles.socialButtonTablet
+                        ]}>
                             <View style={styles.socialButtonContent}>
                                 <Image source={naverLogo} style={styles.socialIcon} resizeMode="contain" />
                                 <Text style={styles.socialButtonText}>Start with Naver</Text>
@@ -398,22 +572,36 @@ export default function Login() {
                     </View>
                 </View>
             </View>
+            
+            {/* 하단 바 */}
+            <View style={[
+                styles.position3,
+                screenInfo.isPhone && !isLandscape && styles.position3Mobile
+            ]}>
+                <View style={[
+                    styles.hr,
+                    screenInfo.isPhone && !isLandscape && styles.hrMobile
+                ]}></View>
+            </View>
             </MobileSafeArea>
         </OrientationGuard>
     );
 }
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
     safeArea: {
         flex: 1,
         backgroundColor: '#ffffff',
-        paddingTop: 20, // 상태바 여백 추가
+        paddingTop: 20,
     },
     hr: {
         height: 30,
         backgroundColor: 'black',
         marginVertical: 5,
         width: '100%',
+    },
+    hrMobile: {
+        height: 20,
     },
     position1: {
         width: '100%',
@@ -447,22 +635,24 @@ const styles = StyleSheet.create({
     rightSection: {
         width: '50%',
         backgroundColor: '#ffffff',
-        justifyContent: 'center',
+        justifyContent: 'space-between',
         alignItems: 'center',
         paddingHorizontal: 60,
     },
     formContainer: {
         width: '100%',
         maxWidth: 430,
-        alignItems: 'center', // stretch에서 center로 변경
+        alignItems: 'center',
+        flex: 1,
+        justifyContent: 'center',
     },
     title: {
-        fontSize: 52, // 46에서 52로 증가
+        fontSize: 52,
         fontWeight: '700',
         color: '#000000',
         marginBottom: 26,
-        alignSelf: 'flex-start', // center에서 flex-start로 변경 (왼쪽 경계)
-        textAlign: 'left', // center에서 left로 변경
+        alignSelf: 'flex-start',
+        textAlign: 'left',
     },
     input: {
         width: '100%',
@@ -477,7 +667,7 @@ const styles = StyleSheet.create({
         color: '#000000',
     },
     signupLinkContainer: {
-        alignSelf: 'flex-end', // flex-start에서 flex-end로 변경 (오른쪽 경계)
+        alignSelf: 'flex-end',
         marginBottom: 12,
         marginTop: 4,
     },
@@ -565,7 +755,7 @@ const styles = StyleSheet.create({
         fontWeight: '500',
     },
     
-    // 모바일 전용 스타일 (기존 태블릿/데스크톱 스타일은 유지)
+    // 모바일 전용 스타일
     mainContentMobile: {
         flexDirection: 'column',
     },
@@ -591,38 +781,39 @@ const styles = StyleSheet.create({
         flex: 1,
         paddingHorizontal: 20,
         paddingVertical: 15,
-        justifyContent: 'center', // flex-start에서 center로 변경
+        justifyContent: 'center',
         alignItems: 'center',
     },
     titleMobile: {
-        fontSize: 36, // 32에서 36으로 증가
+        fontSize: 36,
         marginBottom: 20,
-        textAlign: 'left', // center에서 left로 변경
-        alignSelf: 'flex-start', // center에서 flex-start로 변경 (왼쪽 경계)
+        textAlign: 'left',
+        alignSelf: 'flex-start',
         fontWeight: '700',
     },
     formContainerMobile: {
         width: '96%',
         maxWidth: 380,
         alignSelf: 'center',
-        alignItems: 'center', // 모바일에서도 중앙 정렬
+        alignItems: 'center',
         paddingHorizontal: 12,
         paddingVertical: 10,
     },
     inputMobile: {
-        height: 50,
+        height: 52,
         fontSize: 16,
         marginBottom: 12,
         paddingHorizontal: 18,
         borderRadius: 10,
+        color: '#000000',
     },
     loginButtonMobile: {
-        height: 50,
+        height: 52,
         marginBottom: 0,
         borderRadius: 10,
     },
     socialButtonMobile: {
-        height: 50,
+        height: 52,
         marginBottom: 12,
         borderRadius: 10,
     },
@@ -633,8 +824,14 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
     },
+    position1Mobile: {
+        marginTop: 10,
+    },
+    position3Mobile: {
+        marginBottom: 10,
+    },
     
-    // 가로모드 전용 스타일 (Galaxy S20 5G 가로모드 최적화)
+    // 가로모드 전용 스타일
     mainContentLandscape: {
         flexDirection: 'row',
     },
@@ -664,5 +861,73 @@ const styles = StyleSheet.create({
         alignSelf: 'center',
         paddingHorizontal: 8,
         paddingVertical: 5,
+    },
+    
+    // 태블릿 전용 스타일 (기존 스타일의 85% 크기와 간격)
+    mainContentTablet: {
+        flexDirection: 'row',
+        flex: 1,
+    },
+    leftSectionTablet: {
+        width: '45%',
+        backgroundColor: '#f0f4f8',
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingVertical: 34,
+        borderBottomWidth: 0,
+        borderRightWidth: 1,
+        borderRightColor: '#ddd',
+    },
+    imgTablet: {
+        width: 250,
+        height: 250,
+        alignSelf: 'center',
+    },
+    rightSectionTablet: {
+        width: '55%',
+        flex: 1,
+        paddingHorizontal: 34,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    titleTablet: {
+        fontSize: 45,
+        marginBottom: 34,
+        textAlign: 'left',
+        alignSelf: 'flex-start',
+        fontWeight: '700',
+    },
+    formContainerTablet: {
+        width: '100%',
+        maxWidth: 425,
+        alignSelf: 'center',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingHorizontal: 17,
+        paddingVertical: 40,
+    },
+    inputTablet: {
+        height: 51,
+        fontSize: 15,
+        marginBottom: 17,
+        paddingHorizontal: 21,
+        borderRadius: 11,
+    },
+    loginButtonTablet: {
+        height: 51,
+        marginBottom: 0,
+        borderRadius: 11,
+    },
+    socialButtonTablet: {
+        height: 51,
+        marginBottom: 13,
+        borderRadius: 11,
+    },
+    dividerContainerTablet: {
+        marginTop: 25,
+        marginBottom: 25,
+        width: '100%',
+        alignItems: 'center',
+        justifyContent: 'center',
     },
 });

@@ -18,8 +18,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // import RNIap, {
 //   Product,
 //   Subscription,
+// } from 'react-native-iap';
 import userDataService from './userDataService';
-import OrientationGuard from './components/OrientationGuard';
 import { getScreenInfo, responsive } from './utils/responsive';
 import MiniTimer from './miniTimer';
 
@@ -40,8 +40,8 @@ const PLANS = [
     features: [
       '프리미엄 프로필 커스터마이징',
       'AI 질문 월 30개',
-      'GPT-4o 모델 사용',
-      '고급 프로필 테마',
+      'GPT-4o mini 모델 사용',
+      '전용 커뮤니티 스타일 제공',
     ],
   },
   {
@@ -55,8 +55,9 @@ const PLANS = [
       '프리미엄 프로필 커스터마이징',
       'AI 질문 월 65개',
       'GPT-4o 최신 모델 사용',
-      '프리미엄 프로필 테마',
-      '고급 색상 팔레트',
+      '더 많은 전용 커뮤니티 스타일 제공',
+      'AI 응답 스타일 선택 가능',
+      '잠근된 모든 노트 기능 해제',
       '우선 지원',
     ],
   },
@@ -75,6 +76,8 @@ export default function Store() {
   const [screenInfo, setScreenInfo] = useState(getScreenInfo());
   const [purchaseUpdateSubscription, setPurchaseUpdateSubscription] = useState(null);
   const [purchaseErrorSubscription, setPurchaseErrorSubscription] = useState(null);
+  const [selectedAiStyle, setSelectedAiStyle] = useState('friendly');
+  const [showStyleModal, setShowStyleModal] = useState(false);
 
   // 화면 크기 변경 감지
   useEffect(() => {
@@ -88,6 +91,7 @@ export default function Store() {
   useEffect(() => {
     initializeIAP();
     loadUserData();
+    loadAiStyle();
 
     return () => {
       // IAP 정리 (개발 빌드에서만 필요)
@@ -117,6 +121,88 @@ export default function Store() {
       Alert.alert('오류', '데이터를 불러오는데 실패했습니다.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadAiStyle = async () => {
+    try {
+      const user = await userDataService.getCurrentUser();
+      if (!user) return;
+
+      // 서버에서 AI 스타일 불러오기
+      const response = await fetch(`http://192.168.45.53:5000/api/users/ai-style/${user.email}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          setSelectedAiStyle(data.aiStyle);
+          // 로컬에도 저장
+          await AsyncStorage.setItem('aiStyle', data.aiStyle);
+        }
+      } else {
+        // 서버에서 불러오기 실패 시 로컬에서 불러오기
+        const savedStyle = await AsyncStorage.getItem('aiStyle');
+        if (savedStyle) {
+          setSelectedAiStyle(savedStyle);
+        }
+      }
+    } catch (error) {
+      console.error('AI 스타일 로드 실패:', error);
+      // 오류 시 로컬에서 불러오기
+      try {
+        const savedStyle = await AsyncStorage.getItem('aiStyle');
+        if (savedStyle) {
+          setSelectedAiStyle(savedStyle);
+        }
+      } catch (localError) {
+        console.error('로컬 AI 스타일 로드 실패:', localError);
+      }
+    }
+  };
+
+  const saveAiStyle = async (style) => {
+    try {
+      const user = await userDataService.getCurrentUser();
+      if (!user) return;
+
+      // 서버에 AI 스타일 저장
+      const response = await fetch(`http://192.168.45.53:5000/api/users/ai-style`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: user.email,
+          aiStyle: style
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          // 로컬에도 저장
+          await AsyncStorage.setItem('aiStyle', style);
+          setSelectedAiStyle(style);
+        }
+      } else {
+        // 서버 저장 실패 시 로컬에만 저장
+        await AsyncStorage.setItem('aiStyle', style);
+        setSelectedAiStyle(style);
+      }
+    } catch (error) {
+      console.error('AI 스타일 저장 실패:', error);
+      // 오류 시 로컬에만 저장
+      try {
+        await AsyncStorage.setItem('aiStyle', style);
+        setSelectedAiStyle(style);
+      } catch (localError) {
+        console.error('로컬 AI 스타일 저장 실패:', localError);
+      }
     }
   };
 
@@ -213,26 +299,15 @@ export default function Store() {
     );
   }
 
-  // 반응형 스타일 생성
-  const getResponsiveStyles = () => {
-    if (screenInfo.isPhone) {
-      return phoneStyles;
-    }
-    return {}; // 태블릿은 기존 스타일 유지
-  };
-
-  const responsiveStyles = getResponsiveStyles();
-
   return (
-    <OrientationGuard screenName="스토어">
-      <SafeAreaView style={[styles.container, responsiveStyles.container]}> 
-        <MiniTimer />
-        {/* 헤더 */}
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
-            <Text style={styles.backButton}>← 뒤로</Text>
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>스토어</Text>
+    <SafeAreaView style={styles.container}> 
+      <MiniTimer />
+      {/* 헤더 */}
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()}>
+          <Text style={styles.backButton}>← 뒤로</Text>
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>스토어</Text>
         <TouchableOpacity onPress={restorePurchases}>
           <Text style={styles.restoreButton}>복원</Text>
         </TouchableOpacity>
@@ -370,6 +445,22 @@ export default function Store() {
                   ))}
                 </View>
 
+                {/* AI 스타일 선택 */}
+                <View style={styles.modalAiStyleSection}>
+                  <Text style={styles.modalAiStyleTitle}>AI 스타일 선택</Text>
+                  <TouchableOpacity 
+                    style={styles.modalAiStyleButton}
+                    onPress={() => setShowStyleModal(true)}
+                  >
+                    <Text style={styles.modalAiStyleButtonText}>
+                      {selectedAiStyle === 'friendly' ? '친절한 스타일' : 
+                       selectedAiStyle === 'strict' ? '엄격한 스타일' : 
+                       '커플 스타일'}
+                    </Text>
+                    <Text style={styles.modalAiStyleArrow}>▼</Text>
+                  </TouchableOpacity>
+                </View>
+
                 <Text style={styles.modalNote}>
                   Google Play를 통해 결제가 진행됩니다.
                 </Text>
@@ -402,8 +493,64 @@ export default function Store() {
           </View>
         </View>
       </Modal>
-      </SafeAreaView>
-    </OrientationGuard>
+
+      {/* AI 스타일 선택 모달 */}
+      <Modal
+        visible={showStyleModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowStyleModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.styleModalContent}>
+            <Text style={styles.styleModalTitle}>AI 스타일 선택</Text>
+            <Text style={styles.styleModalSubtitle}>어떤 스타일의 AI와 대화하고 싶으신가요?</Text>
+            
+            <View style={styles.styleButtons}>
+              <TouchableOpacity 
+                style={[styles.styleOptionButton, selectedAiStyle === 'friendly' && styles.selectedStyleButton]}
+                onPress={() => {
+                  saveAiStyle('friendly');
+                  setShowStyleModal(false);
+                }}
+              >
+                <Text style={styles.styleName}>친절한 스타일</Text>
+                <Text style={styles.styleDescription}>따뜻하고 격려하는 선생님</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[styles.styleOptionButton, selectedAiStyle === 'strict' && styles.selectedStyleButton]}
+                onPress={() => {
+                  saveAiStyle('strict');
+                  setShowStyleModal(false);
+                }}
+              >
+                <Text style={styles.styleName}>엄격한 스타일</Text>
+                <Text style={styles.styleDescription}>단호하고 직설적인 멘토</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={[styles.styleOptionButton, selectedAiStyle === 'couple' && styles.selectedStyleButton]}
+                onPress={() => {
+                  saveAiStyle('couple');
+                  setShowStyleModal(false);
+                }}
+              >
+                <Text style={styles.styleName}>커플 스타일</Text>
+                <Text style={styles.styleDescription}>애정 어린 학습 파트너</Text>
+              </TouchableOpacity>
+            </View>
+            
+            <TouchableOpacity 
+              style={styles.styleCloseButton}
+              onPress={() => setShowStyleModal(false)}
+            >
+              <Text style={styles.styleCloseText}>취소</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+    </SafeAreaView>
   );
 }
 
@@ -690,167 +837,106 @@ const styles = StyleSheet.create({
   disabledButton: {
     opacity: 0.6,
   },
-});
-
-// 핸드폰용 반응형 스타일
-const phoneStyles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f5f5f5',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: responsive.spacing(16),
-    paddingVertical: responsive.spacing(12),
-    backgroundColor: '#fff',
+  
+  // AI 스타일 관련 스타일
+  modalAiStyleSection: {
+    marginVertical: 16,
+    paddingVertical: 12,
+    borderTopWidth: 1,
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    borderColor: '#E5E5E5',
   },
-  headerTitle: {
-    fontSize: responsive.fontSize(18),
+  modalAiStyleTitle: {
+    fontSize: 16,
     fontWeight: '600',
     color: '#333',
+    marginBottom: 8,
   },
-  backButton: {
-    fontSize: responsive.fontSize(16),
-    color: '#4A90E2',
+  modalAiStyleButton: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#F8F9FA',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+  },
+  modalAiStyleButtonText: {
+    fontSize: 14,
     fontWeight: '500',
-  },
-  restoreButton: {
-    fontSize: responsive.fontSize(14),
-    color: '#666',
-  },
-  scrollView: {
-    flex: 1,
-    padding: responsive.spacing(16),
-  },
-  subscriptionStatus: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: responsive.spacing(16),
-    marginBottom: responsive.spacing(20),
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-  },
-  statusTitle: {
-    fontSize: responsive.fontSize(16),
-    fontWeight: '600',
     color: '#333',
-    marginBottom: responsive.spacing(8),
   },
-  statusText: {
-    fontSize: responsive.fontSize(14),
+  modalAiStyleArrow: {
+    fontSize: 12,
     color: '#666',
-    marginBottom: responsive.spacing(4),
   },
-  planCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: responsive.spacing(16),
-    marginBottom: responsive.spacing(16),
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
+  styleModalContent: { 
+    backgroundColor: 'white', 
+    borderRadius: 20, 
+    padding: 24, 
+    width: 320, 
+    maxWidth: '90%',
+    shadowColor: '#000', 
+    shadowOffset: { width: 0, height: 10 }, 
+    shadowOpacity: 0.25, 
+    shadowRadius: 20, 
+    elevation: 10 
   },
-  activePlanCard: {
+  styleModalTitle: { 
+    fontSize: 20, 
+    fontWeight: '700', 
+    color: '#000', 
+    textAlign: 'center', 
+    marginBottom: 8 
+  },
+  styleModalSubtitle: { 
+    fontSize: 14, 
+    color: '#666', 
+    textAlign: 'center', 
+    marginBottom: 24 
+  },
+  styleButtons: { 
+    gap: 12, 
+    marginBottom: 20 
+  },
+  styleOptionButton: { 
+    backgroundColor: '#F8F9FA', 
+    borderRadius: 12, 
+    padding: 16, 
+    alignItems: 'center',
     borderWidth: 2,
-    borderColor: '#4A90E2',
+    borderColor: '#E5E5E5'
   },
-  planHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: responsive.spacing(12),
+  selectedStyleButton: { 
+    backgroundColor: '#E3F2FD', 
+    borderColor: '#2196F3' 
   },
-  planName: {
-    fontSize: responsive.fontSize(18),
-    fontWeight: '700',
-    color: '#333',
+  styleIcon: { 
+    fontSize: 32, 
+    marginBottom: 8 
   },
-  planPrice: {
-    fontSize: responsive.fontSize(16),
-    fontWeight: '600',
-    color: '#4A90E2',
+  styleName: { 
+    fontSize: 16, 
+    fontWeight: '600', 
+    color: '#000', 
+    marginBottom: 4 
   },
-  planDescription: {
-    fontSize: responsive.fontSize(14),
-    color: '#666',
-    marginBottom: responsive.spacing(12),
+  styleDescription: { 
+    fontSize: 12, 
+    color: '#666', 
+    textAlign: 'center' 
   },
-  featuresList: {
-    marginBottom: responsive.spacing(16),
+  styleCloseButton: { 
+    backgroundColor: '#F5F5F5', 
+    borderRadius: 8, 
+    paddingVertical: 12, 
+    alignItems: 'center' 
   },
-  featureItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: responsive.spacing(6),
-  },
-  featureText: {
-    fontSize: responsive.fontSize(14),
-    color: '#333',
-    marginLeft: responsive.spacing(8),
-  },
-  subscribeButton: {
-    backgroundColor: '#4A90E2',
-    borderRadius: 8,
-    paddingVertical: responsive.spacing(12),
-    alignItems: 'center',
-  },
-  subscribeButtonText: {
-    color: '#fff',
-    fontSize: responsive.fontSize(16),
-    fontWeight: '600',
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalContent: {
-    width: '85%',
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: responsive.spacing(24),
-  },
-  modalTitle: {
-    fontSize: responsive.fontSize(18),
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: responsive.spacing(16),
-    textAlign: 'center',
-  },
-  modalText: {
-    fontSize: responsive.fontSize(14),
-    color: '#666',
-    marginBottom: responsive.spacing(20),
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-  modalButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: responsive.spacing(12),
-  },
-  modalCancelButton: {
-    flex: 1,
-    paddingVertical: responsive.spacing(12),
-    borderRadius: 8,
-    backgroundColor: '#f0f0f0',
-    alignItems: 'center',
-  },
-  modalConfirmButton: {
-    flex: 1,
-    paddingVertical: responsive.spacing(12),
-    borderRadius: 8,
-    backgroundColor: '#4A90E2',
-    alignItems: 'center',
+  styleCloseText: { 
+    fontSize: 16, 
+    fontWeight: '500', 
+    color: '#666' 
   },
 });

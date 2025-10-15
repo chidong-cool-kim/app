@@ -11,7 +11,8 @@ import {
   Image,
   Alert,
   Platform,
-  Dimensions
+  Dimensions,
+  Animated
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -21,11 +22,32 @@ import * as ImagePicker from 'expo-image-picker';
 import SnowEffect from './components/SnowEffect';
 import AutumnLeavesEffect from './components/AutumnLeavesEffect';
 import RainEffect from './components/RainEffect';
+import ShootingStarEffect from './components/ShootingStarEffect';
 import UserProfileModal from './components/UserProfileModal';
 import effectSettingsService from './services/EffectSettingsService';
+import { getScreenInfo } from './utils/responsive';
 
 const API_URL = 'http://192.168.45.53:5000';
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+
+const getSubjects = (isAdmin = false) => {
+  const baseSubjects = [
+    '홈',
+    '타이머',
+    '플래너',
+    'AI',
+    '스터디그룹 찾기',
+    '커뮤니티',
+    '스토어',
+  ];
+  
+  if (isAdmin) {
+    baseSubjects.push('👥 사용자 관리');
+    baseSubjects.push('📝 게시글 관리');
+  }
+  
+  return baseSubjects;
+};
 
 export default function Community() {
   const navigation = useNavigation();
@@ -40,7 +62,9 @@ export default function Community() {
   const [hasAutumnEffect, setHasAutumnEffect] = useState(false);
   const [activeSubject, setActiveSubject] = useState('커뮤니티');
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [sidebarVisible, setSidebarVisible] = useState(true);
+  const [screenInfo, setScreenInfo] = useState(getScreenInfo());
+  const [sidebarVisible, setSidebarVisible] = useState(!getScreenInfo().isPhone);
+  const slideAnim = useState(new Animated.Value(-300))[0];
   const [currentUser, setCurrentUser] = useState(null);
   const [showImageModal, setShowImageModal] = useState(false);
   const [selectedImageUrl, setSelectedImageUrl] = useState(null);
@@ -50,22 +74,16 @@ export default function Community() {
   const [isProfileModalVisible, setProfileModalVisible] = useState(false);
   const [selectedUserEmail, setSelectedUserEmail] = useState(null);
   const [newComment, setNewComment] = useState('');
+  const [isAdmin, setIsAdmin] = useState(false);
   const [effectSettings, setEffectSettings] = useState({
     snowEffect: false,
     autumnEffect: false,
+    rainEffect: false,
+    shootingStarEffect: false,
     isPremiumUser: false,
     effectIntensity: 30,
   });
-
-  const subjects = [
-    { name: '홈', active: activeSubject === '홈' },
-    { name: '타이머', active: activeSubject === '타이머' },
-    { name: '플래너', active: activeSubject === '플래너' },
-    { name: 'AI', active: activeSubject === 'AI' },
-    { name: '스터디그룹 찾기', active: activeSubject === '스터디그룹 찾기' },
-    { name: '커뮤니티', active: activeSubject === '커뮤니티' },
-    { name: '스토어', active: activeSubject === '스토어' },
-  ];
+  const [responsiveStyles, setResponsiveStyles] = useState(getResponsiveStyles());
 
   useEffect(() => {
     loadUserInfo();
@@ -80,6 +98,18 @@ export default function Community() {
     return unsubscribe;
   }, [navigation]);
 
+  // 화면 크기 변경 감지
+  useEffect(() => {
+    const subscription = Dimensions.addEventListener('change', () => {
+      const newScreenInfo = getScreenInfo();
+      setScreenInfo(newScreenInfo);
+      setSidebarVisible(!newScreenInfo.isPhone);
+      setResponsiveStyles(getResponsiveStyles());
+    });
+    
+    return () => subscription?.remove();
+  }, []);
+
   const loadUserInfo = async () => {
     try {
       const updatedUser = await userDataService.refreshCurrentUser();
@@ -88,6 +118,10 @@ export default function Community() {
         const isPremium = updatedUser.subscription?.isActive || false;
         await effectSettingsService.setPremiumStatus(isPremium);
         await loadEffectSettings();
+        
+        // 관리자 권한 확인
+        const adminStatus = updatedUser.email === 'drda00001@gmail.com' || updatedUser.role === 'admin';
+        setIsAdmin(adminStatus);
       }
     } catch (error) {
       console.error('사용자 정보 로드 실패:', error);
@@ -142,37 +176,58 @@ export default function Community() {
   const handleSubjectPress = (subjectName) => {
     setActiveSubject(subjectName);
     
-    switch(subjectName) {
-      case '홈':
-        navigation.navigate('Main');
-        break;
-      case '타이머':
-        navigation.navigate('Timer');
-        break;
-      case '필기':
-        navigation.navigate('Note');
-        break;
-      case '플래너':
-        navigation.navigate("Planner");
-        break;
-      case 'AI':
-        navigation.navigate('AI');
-        break;
-      case '스터디그룹 찾기':
-        navigation.navigate('StudyGroup');
-        break;
-      case '커뮤니티':
-        break;
-      case '스토어':
-        navigation.navigate('Store');
-        break;
-      default:
-        break;
+    // 모바일에서 사이드바 닫기
+    if (screenInfo.isPhone) {
+      setSidebarVisible(false);
+      // 애니메이션 값 초기화
+      slideAnim.setValue(-300);
+    }
+    
+    const screenMap = {
+      '홈': 'Main',
+      '타이머': 'Timer',
+      '플래너': 'Planner',
+      'AI': 'AI',
+      '스터디그룹 찾기': 'StudyGroup',
+      '커뮤니티': 'Community',
+      '스토어': 'Store'
+    };
+    
+    if (subjectName === '👥 사용자 관리') {
+      navigation.navigate('AdminPanel', { initialTab: 'users' });
+    } else if (subjectName === '📝 게시글 관리') {
+      navigation.navigate('AdminPanel', { initialTab: 'posts' });
+    } else if (screenMap[subjectName]) {
+      if (subjectName !== '커뮤니티') {
+        navigation.navigate(screenMap[subjectName]);
+      }
     }
   };
 
   const toggleSidebar = () => {
-    setSidebarVisible(!sidebarVisible);
+    if (screenInfo.isPhone) {
+      if (sidebarVisible) {
+        // 닫기 애니메이션
+        Animated.timing(slideAnim, {
+          toValue: -300,
+          duration: 300,
+          useNativeDriver: true,
+        }).start(() => {
+          setSidebarVisible(false);
+        });
+      } else {
+        // 열기 애니메이션
+        setSidebarVisible(true);
+        Animated.timing(slideAnim, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+        }).start();
+      }
+    } else {
+      // 데스크톱에서는 기존 방식
+      setSidebarVisible(!sidebarVisible);
+    }
   };
 
   const handleImagePress = (imageUrl) => {
@@ -370,6 +425,7 @@ export default function Community() {
           hasSnowEffect: effectSettings.isPremiumUser && effectSettings.snowEffect,
           hasAutumnEffect: effectSettings.isPremiumUser && effectSettings.autumnEffect,
           hasRainEffect: effectSettings.isPremiumUser && effectSettings.rainEffect,
+          hasShootingStarEffect: effectSettings.isPremiumUser && effectSettings.shootingStarEffect,
           authorEmail: currentUser?.email
         })
       });
@@ -463,6 +519,7 @@ export default function Community() {
         hasSnowEffect: effectSettings.isPremiumUser && effectSettings.snowEffect,
         hasAutumnEffect: effectSettings.isPremiumUser && effectSettings.autumnEffect,
         hasRainEffect: effectSettings.isPremiumUser && effectSettings.rainEffect,
+        hasShootingStarEffect: effectSettings.isPremiumUser && effectSettings.shootingStarEffect,
       };
       
       const updatedPosts = posts.map(post => {
@@ -592,8 +649,9 @@ export default function Community() {
   };
 
   return (
-    <MobileSafeArea style={styles.safeArea} backgroundColor="#f5f5f5">
-      <View style={styles.header}>
+    <SafeAreaView style={styles.safeArea}>
+      {/* 헤더 - Main.js와 완전 동일 */}
+      <View style={[styles.header, responsiveStyles.header]}>
         <View style={styles.headerLeft}>
           <TouchableOpacity 
             style={styles.hamburgerButton}
@@ -604,35 +662,36 @@ export default function Community() {
             <View style={styles.hamburgerLine} />
           </TouchableOpacity>
           
-          <Text style={styles.title}>StudyTime</Text>
-          <Text style={styles.homeText}>커뮤니티</Text>
+          <Text style={[styles.title, responsiveStyles.title]}>StudyTime</Text>
+          <Text style={[styles.homeText, responsiveStyles.homeText]}>커뮤니티</Text>
         </View>
         <TouchableOpacity
-          style={styles.profileIcon}
+          style={[styles.profileIcon, responsiveStyles.profileIcon]}
           onPress={() => navigation.navigate('Settings')}
         >
           {currentUser?.profileImage ? (
             <Image 
               source={{ uri: currentUser.profileImage }} 
-              style={styles.profileImage}
+              style={[styles.profileImage, responsiveStyles.profileImage]}
             />
           ) : (
-            <Text style={styles.profileText}>
-              {currentUser?.name?.charAt(0) || currentUser?.email?.charAt(0) || '?'}
-            </Text>
+            <View style={[styles.defaultProfileIcon, responsiveStyles.defaultProfileIcon]}>
+              <Text style={[styles.profileText, responsiveStyles.profileText]}>
+                {currentUser?.name?.charAt(0) || currentUser?.email?.charAt(0) || '?'}
+              </Text>
+            </View>
           )}
         </TouchableOpacity>
       </View>
 
-      <View style={styles.container}>
-        {sidebarVisible && (
-          <View style={styles.sidebar}>
-            <View style={styles.searchContainer}>
-              <View style={styles.searchIcon}>
-                <Text style={styles.searchIconText}>🔍</Text>
-              </View>
+      <View style={[styles.container, screenInfo.isPhone && styles.phoneContainer]}>
+        {/* 데스크톱 사이드바 */}
+        {!screenInfo.isPhone && sidebarVisible && (
+          <View style={[styles.sidebar, responsiveStyles.sidebar]}>
+            <View style={[styles.searchContainer, responsiveStyles.searchContainer]}>
+              <Text style={[styles.searchIconText, responsiveStyles.searchIconText]}>🔍</Text>
               <TextInput
-                style={styles.searchInput}
+                style={[styles.searchInput, responsiveStyles.searchInput]}
                 placeholder="검색"
                 placeholderTextColor="#999"
                 value={searchText}
@@ -640,25 +699,27 @@ export default function Community() {
               />
             </View>
 
-            <View style={styles.subjectList}>
-              {subjects.map((subject, index) => (
+            <ScrollView style={styles.subjectList} showsVerticalScrollIndicator={false}>
+              {getSubjects(isAdmin).map((subject, index) => (
                 <TouchableOpacity
                   key={index}
                   style={[
                     styles.subjectItem,
-                    subject.active && styles.activeSubjectItem
+                    responsiveStyles.subjectItem,
+                    subject === activeSubject && styles.activeSubjectItem
                   ]}
-                  onPress={() => handleSubjectPress(subject.name)}
+                  onPress={() => handleSubjectPress(subject)}
                 >
                   <Text style={[
                     styles.subjectText,
-                    subject.active && styles.activeSubjectText
+                    responsiveStyles.subjectText,
+                    subject === activeSubject && styles.activeSubjectText
                   ]}>
-                    {subject.name}
+                    {subject}
                   </Text>
                 </TouchableOpacity>
               ))}
-            </View>
+            </ScrollView>
 
             <View style={styles.bottomDots}>
               <View style={[styles.dot, styles.activeDot]} />
@@ -667,133 +728,207 @@ export default function Community() {
             </View>
           </View>
         )}
-
-        <View style={[styles.mainContent, !sidebarVisible && styles.mainContentExpanded]}>
-          <View style={styles.communityHeader}>
-            <Text style={styles.communityTitle}>커뮤니티</Text>
-            <Text style={styles.communitySubtitle}>함께 공부하며 지식을 나눠보세요</Text>
+        
+        {/* 모바일 슬라이드 사이드바 */}
+        {screenInfo.isPhone && sidebarVisible && (
+          <View style={styles.mobileSidebar}>
+            <Animated.View style={[
+              styles.mobileSidebarContent,
+              responsiveStyles.mobileSidebarContent,
+              { transform: [{ translateX: slideAnim }] }
+            ]}>
+              <View style={[styles.searchContainer, responsiveStyles.searchContainer]}>
+                <Text style={[styles.searchIconText, responsiveStyles.searchIconText]}>🔍</Text>
+                <TextInput
+                  style={[styles.searchInput, responsiveStyles.searchInput]}
+                  placeholder="검색"
+                  placeholderTextColor="#999"
+                  value={searchText}
+                  onChangeText={setSearchText}
+                />
+              </View>
+              
+              <ScrollView style={styles.subjectList} showsVerticalScrollIndicator={false}>
+                {getSubjects(isAdmin).map((subject, index) => (
+                  <TouchableOpacity
+                    key={index}
+                    style={[
+                      styles.subjectItem,
+                      responsiveStyles.subjectItem,
+                      subject === activeSubject && styles.activeSubjectItem
+                    ]}
+                    onPress={() => handleSubjectPress(subject)}
+                  >
+                    <Text style={[
+                      styles.subjectText,
+                      responsiveStyles.subjectText,
+                      subject === activeSubject && styles.activeSubjectText
+                    ]}>
+                      {subject}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+              
+              <View style={styles.bottomDots}>
+                <View style={[styles.dot, styles.activeDot]} />
+                <View style={styles.dot} />
+                <View style={styles.dot} />
+              </View>
+            </Animated.View>
+            
+            <TouchableOpacity 
+              style={styles.mobileSidebarOverlay} 
+              onPress={() => {
+                setSidebarVisible(false);
+                slideAnim.setValue(-300);
+              }}
+              activeOpacity={1}
+            />
           </View>
+        )}
 
-          <ScrollView 
-            style={styles.postsContainer}
-            showsVerticalScrollIndicator={false}
-          >
-            {posts.map((post) => (
-              <TouchableOpacity
-                key={post.id}
-                style={styles.postCard}
-                onPress={() => handlePostPress(post)}
-                activeOpacity={0.8}
-              >
-                {post.hasRainEffect ? (
-                  <View style={styles.postSnowContainer}>
-                    <RainEffect active={true} intensity={20} duration={2000} />
-                  </View>
-                ) : post.hasAutumnEffect ? (
-                  <View style={styles.postSnowContainer}>
-                    <AutumnLeavesEffect active={true} intensity={18} duration={8000} />
-                  </View>
-                ) : post.hasSnowEffect ? (
-                  <View style={styles.postSnowContainer}>
-                    <SnowEffect 
-                      active={true} 
-                      intensity={25} 
-                      duration={6000}
-                    />
-                  </View>
-                ) : null}
-                <View style={styles.postHeader}>
-                  <TouchableOpacity style={styles.authorInfo} onPress={() => handleProfilePress(post.authorEmail)}>
-                    <View style={styles.authorAvatar}>
-                      {(post.authorImage || (currentUser && (post.author === currentUser.name || post.author === currentUser.email || post.author === "나"))) ? (
-                        <Image 
-                          source={{ 
-                            uri: post.authorImage && post.authorImage.startsWith('/uploads/') 
-                              ? `http://192.168.45.53:5000${post.authorImage}` 
-                              : (post.authorImage || currentUser?.profileImage)
-                          }} 
-                          style={styles.authorAvatarImage}
-                          onError={(error) => {
-                            console.log('게시글 작성자 이미지 로드 실패:', error.nativeEvent.error);
-                          }}
+        {/* 메인 콘텐츠를 View로 감싸기 */}
+        <View style={{ flex: 1, position: 'relative' }}>
+          {/* 모바일에서 사이드바가 열려있으면 메인 콘텐츠 숨김 */}
+          {!(screenInfo.isPhone && sidebarVisible) && (
+            <ScrollView style={[
+              styles.mainContent, 
+              !sidebarVisible && styles.mainContentExpanded,
+              screenInfo.isPhone && styles.phoneMainContent
+            ]} contentContainerStyle={[
+              styles.scrollContentContainer,
+              screenInfo.isPhone && styles.phoneScrollContainer
+            ]} showsVerticalScrollIndicator={false}>
+              <View style={[styles.communityHeader, responsiveStyles.communityHeader]}>
+                <Text style={[styles.communityTitle, responsiveStyles.communityTitle]}>커뮤니티</Text>
+                <Text style={[styles.communitySubtitle, responsiveStyles.communitySubtitle]}>함께 공부하며 지식을 나눠보세요</Text>
+              </View>
+
+              <View style={[styles.postsContainer, responsiveStyles.postsContainer]}>
+                {posts.map((post) => (
+                  <TouchableOpacity
+                    key={post.id}
+                    style={[styles.postCard, responsiveStyles.postCard]}
+                    onPress={() => handlePostPress(post)}
+                    activeOpacity={0.8}
+                  >
+                    {post.hasShootingStarEffect ? (
+                      <View style={styles.postSnowContainer}>
+                        <ShootingStarEffect active={true} intensity={10} duration={3000} />
+                      </View>
+                    ) : post.hasRainEffect ? (
+                      <View style={styles.postSnowContainer}>
+                        <RainEffect active={true} intensity={50} duration={2000} />
+                      </View>
+                    ) : post.hasAutumnEffect ? (
+                      <View style={styles.postSnowContainer}>
+                        <AutumnLeavesEffect active={true} intensity={18} duration={8000} />
+                      </View>
+                    ) : post.hasSnowEffect ? (
+                      <View style={styles.postSnowContainer}>
+                        <SnowEffect 
+                          active={true} 
+                          intensity={25} 
+                          duration={6000}
                         />
-                      ) : (
-                        <Text style={styles.authorAvatarText}>
-                          {post.author.charAt(0)}
-                        </Text>
-                      )}
-                    </View>
-                    <View style={styles.authorTextContainer}>
-                      <Text style={styles.authorName}>{post.author}</Text>
-                      <Text style={styles.postDate}>{post.date}</Text>
+                      </View>
+                    ) : null}
+                    <View style={[styles.postHeader, responsiveStyles.postHeader]}>
+                      <TouchableOpacity style={styles.authorInfo} onPress={() => handleProfilePress(post.authorEmail)}>
+                        <View style={[styles.authorAvatar, responsiveStyles.authorAvatar]}>
+                          {(post.authorImage || (currentUser && (post.author === currentUser.name || post.author === currentUser.email || post.author === "나"))) ? (
+                            <Image 
+                              source={{ 
+                                uri: post.authorImage && post.authorImage.startsWith('/uploads/') 
+                                  ? `http://192.168.45.53:5000${post.authorImage}` 
+                                  : (post.authorImage || currentUser?.profileImage)
+                              }} 
+                              style={[styles.authorAvatarImage, responsiveStyles.authorAvatarImage]}
+                              onError={(error) => {
+                                console.log('게시글 작성자 이미지 로드 실패:', error.nativeEvent.error);
+                              }}
+                            />
+                          ) : (
+                            <Text style={[styles.authorAvatarText, responsiveStyles.authorAvatarText]}>
+                              {post.author.charAt(0)}
+                            </Text>
+                          )}
+                        </View>
+                        <View style={styles.authorTextContainer}>
+                          <Text style={[styles.authorName, responsiveStyles.authorName, (post.hasShootingStarEffect || post.hasRainEffect || post.hasAutumnEffect || post.hasSnowEffect) && { color: '#fff' }]}>{post.author}</Text>
+                          <Text style={[styles.postDate, responsiveStyles.postDate, (post.hasShootingStarEffect || post.hasRainEffect || post.hasAutumnEffect || post.hasSnowEffect) && { color: '#ddd' }]}>{post.date}</Text>
+                        </View>
+                        
+                        {currentUser?.email === 'drda00001@gmail.com' && post.authorEmail !== currentUser.email && (
+                          <TouchableOpacity 
+                            style={[styles.messageButton, responsiveStyles.messageButton]}
+                            onPress={(e) => {
+                              e.stopPropagation();
+                              console.log('[FRONTEND] 메시지 버튼 클릭 - 게시글:', {
+                                author: post.author,
+                                authorEmail: post.authorEmail,
+                                postId: post.id
+                              });
+                              handleMessagePress(post.authorEmail || post.author);
+                            }}
+                          >
+                            <Text style={[styles.messageButtonText, responsiveStyles.messageButtonText]}>💬</Text>
+                          </TouchableOpacity>
+                        )}
+                      </TouchableOpacity>
                     </View>
                     
-                    {currentUser?.email === 'drda00001@gmail.com' && post.authorEmail !== currentUser.email && (
-                      <TouchableOpacity 
-                        style={styles.messageButton}
-                        onPress={(e) => {
-                          e.stopPropagation();
-                          console.log('[FRONTEND] 메시지 버튼 클릭 - 게시글:', {
-                            author: post.author,
-                            authorEmail: post.authorEmail,
-                            postId: post.id
-                          });
-                          handleMessagePress(post.authorEmail || post.author);
-                        }}
-                      >
-                        <Text style={styles.messageButtonText}>💬</Text>
+                    <Text style={[styles.postTitle, responsiveStyles.postTitle, (post.hasShootingStarEffect || post.hasRainEffect || post.hasAutumnEffect || post.hasSnowEffect) && { color: '#fff' }]}>{post.title}</Text>
+                    <Text style={[styles.postPreview, responsiveStyles.postPreview, (post.hasShootingStarEffect || post.hasRainEffect || post.hasAutumnEffect || post.hasSnowEffect) && { color: '#eee' }]} numberOfLines={2}>
+                      {post.content}
+                    </Text>
+                    
+                    {post.image && (
+                      <TouchableOpacity onPress={() => handleImagePress(post.image)}>
+                        <Image 
+                          source={{ uri: post.image }} 
+                          style={[styles.postImage, responsiveStyles.postImage]}
+                          resizeMode="contain"
+                        />
                       </TouchableOpacity>
                     )}
+                    
+                    <View style={styles.postFooter}>
+                      <TouchableOpacity 
+                        style={styles.likeButton}
+                        onPress={(e) => {
+                          e.stopPropagation();
+                          handleLikePost(post.id);
+                        }}
+                      >
+                        <Image
+                          source={post.likedByUser ? require('./assets/heart.png') : require('./assets/unheart.png')}
+                          style={[styles.likeIcon, responsiveStyles.likeIcon, post.likedByUser && styles.likedIcon]}
+                        />
+                        <Text style={[styles.likeCount, responsiveStyles.likeCount, (post.hasShootingStarEffect || post.hasRainEffect || post.hasAutumnEffect || post.hasSnowEffect) && { color: '#fff' }]}>{post.likes}</Text>
+                      </TouchableOpacity>
+                      
+                      <View style={styles.commentInfo}>
+                        <Image
+                          source={require('./assets/chat.png')}
+                          style={[styles.commentIcon, responsiveStyles.commentIcon]}
+                        />
+                        <Text style={[styles.commentCount, responsiveStyles.commentCount, (post.hasShootingStarEffect || post.hasRainEffect || post.hasAutumnEffect || post.hasSnowEffect) && { color: '#fff' }]}>{post.comments.length}</Text>
+                      </View>
+                    </View>
                   </TouchableOpacity>
-                </View>
-                
-                <Text style={styles.postTitle}>{post.title}</Text>
-                <Text style={styles.postPreview} numberOfLines={2}>
-                  {post.content}
-                </Text>
-                
-                {post.image && (
-                  <TouchableOpacity onPress={() => handleImagePress(post.image)}>
-                    <Image 
-                      source={{ uri: post.image }} 
-                      style={styles.postImage}
-                      resizeMode="contain"
-                    />
-                  </TouchableOpacity>
-                )}
-                
-                <View style={styles.postFooter}>
-                  <TouchableOpacity 
-                    style={styles.likeButton}
-                    onPress={(e) => {
-                      e.stopPropagation();
-                      handleLikePost(post.id);
-                    }}
-                  >
-                    <Image
-                      source={post.likedByUser ? require('./assets/heart.png') : require('./assets/unheart.png')}
-                      style={[styles.likeIcon, post.likedByUser && styles.likedIcon]}
-                    />
-                    <Text style={styles.likeCount}>{post.likes}</Text>
-                  </TouchableOpacity>
-                  
-                  <View style={styles.commentInfo}>
-                    <Image
-                      source={require('./assets/chat.png')}
-                      style={styles.commentIcon}
-                    />
-                    <Text style={styles.commentCount}>{post.comments.length}</Text>
-                  </View>
-                </View>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-
+                ))}
+              </View>
+            </ScrollView>
+          )}
+          
+          {/* FAB 버튼을 ScrollView 밖으로 이동 */}
           <TouchableOpacity
-            style={styles.fab}
+            style={[styles.fab, responsiveStyles.fab]}
             onPress={() => setShowCreateModal(true)}
           >
-            <Text style={styles.fabText}>+</Text>
+            <Text style={[styles.fabText, responsiveStyles.fabText]}>+</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -886,23 +1021,6 @@ export default function Community() {
                 </View>
                 <ScrollView style={styles.detailModalBody}>
                   <View style={styles.detailPostCard}>
-                    {selectedPost.hasRainEffect ? (
-                      <View style={styles.postSnowContainer}>
-                        <RainEffect active={true} intensity={20} duration={2000} />
-                      </View>
-                    ) : selectedPost.hasAutumnEffect ? (
-                      <View style={styles.postSnowContainer}>
-                        <AutumnLeavesEffect active={true} intensity={18} duration={8000} />
-                      </View>
-                    ) : selectedPost.hasSnowEffect ? (
-                      <View style={styles.postSnowContainer}>
-                        <SnowEffect 
-                          active={true} 
-                          intensity={25} 
-                          duration={6000}
-                        />
-                      </View>
-                    ) : null}
                     <View style={styles.postHeader}>
                       <TouchableOpacity style={styles.authorInfo} onPress={() => handleProfilePress(selectedPost.authorEmail)}>
                         <View style={styles.authorAvatar}>
@@ -972,23 +1090,6 @@ export default function Community() {
                     
                     {selectedPost.comments.map((comment) => (
                       <View key={comment.id} style={styles.commentCard}>
-                        {comment.hasAutumnEffect ? (
-                          <View style={styles.commentSnowContainer}>
-                            <AutumnLeavesEffect 
-                              active={true} 
-                              intensity={12} 
-                              duration={4000}
-                            />
-                          </View>
-                        ) : comment.hasSnowEffect ? (
-                          <View style={styles.commentSnowContainer}>
-                            <SnowEffect 
-                              active={true} 
-                              intensity={15} 
-                              duration={5000}
-                            />
-                          </View>
-                        ) : null}
                         <View style={styles.commentHeader}>
                           <View style={styles.authorInfo}>
                             <View style={styles.commentAvatar}>
@@ -1121,29 +1222,32 @@ export default function Community() {
           </View>
         </View>
       </Modal>
-    </MobileSafeArea>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#F8F9FA',
-  },
+  safeArea: { flex: 1, backgroundColor: '#F8F9FA' },
+  // 헤더 스타일 - Main.js와 완전 동일
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 24, paddingVertical: 16, backgroundColor: 'white', borderBottomWidth: 1, borderBottomColor: '#E5E5E5' },
-  title: { fontSize: 26, fontWeight: '700', color: '#000' },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   hamburgerButton: { width: 24, height: 24, justifyContent: 'space-between', paddingVertical: 2 },
   hamburgerLine: { width: '100%', height: 3, backgroundColor: '#333', borderRadius: 2 },
+  title: { fontSize: 26, fontWeight: '700', color: '#000' },
   homeText: { fontSize: 16, fontWeight: '500', color: '#000' },
   profileIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#E0E0E0', justifyContent: 'center', alignItems: 'center' },
-  profileText: { fontSize: 9, color: '#666', fontWeight: '400' },
   profileImage: { width: 44, height: 44, borderRadius: 22 },
+  defaultProfileIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#4A90E2', justifyContent: 'center', alignItems: 'center' },
+  profileText: { fontSize: 16, color: '#fff', fontWeight: '600' },
+  
+  // 컨테이너 및 사이드바 스타일 - Main.js와 완전 동일
   container: { flex: 1, flexDirection: 'row' },
   sidebar: { width: 320, backgroundColor: 'white', paddingHorizontal: 20, paddingVertical: 24, borderRightWidth: 1, borderRightColor: '#E5E5E5' },
+  mobileSidebar: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0, 0, 0, 0.5)', zIndex: 1000, flexDirection: 'row' },
+  mobileSidebarContent: { width: '80%', backgroundColor: 'white', paddingHorizontal: 20, paddingVertical: 24, paddingTop: 40, shadowColor: '#000', shadowOffset: { width: 2, height: 0 }, shadowOpacity: 0.25, shadowRadius: 8, elevation: 10 },
+  mobileSidebarOverlay: { flex: 1 },
   searchContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F5F5F5', borderRadius: 25, marginBottom: 24, paddingHorizontal: 16, height: 44 },
-  searchIcon: { marginRight: 8 },
-  searchIconText: { fontSize: 14, color: '#999' },
+  searchIconText: { fontSize: 14, color: '#999', marginRight: 8 },
   searchInput: { flex: 1, fontSize: 15, color: '#000' },
   subjectList: { flex: 1, gap: 4 },
   subjectItem: { paddingVertical: 14, paddingHorizontal: 16, borderRadius: 10 },
@@ -1153,40 +1257,42 @@ const styles = StyleSheet.create({
   bottomDots: { flexDirection: 'row', justifyContent: 'center', gap: 8, paddingTop: 24 },
   dot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#D0D0D0' },
   activeDot: { backgroundColor: '#666' },
+  
+  // 메인 콘텐츠
   mainContent: { flex: 1, backgroundColor: 'white' },
   mainContentExpanded: { paddingLeft: 16 },
-  communityHeader: { padding: 32, paddingBottom: 24, borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
-  communityTitle: { fontSize: 28, fontWeight: '700', color: '#000', marginBottom: 8 },
+  scrollContentContainer: { padding: 32, gap: 32, paddingBottom: 64 },
+  communityHeader: { padding: screenWidth < 768 ? 16 : 32, paddingBottom: screenWidth < 768 ? 12 : 24, borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
+  communityTitle: { fontSize: screenWidth < 768 ? 22 : 28, fontWeight: '700', color: '#000', marginBottom: 8 },
   communitySubtitle: { fontSize: 16, color: '#666', fontWeight: '400' },
-  postsContainer: { flex: 1, padding: 24 },
-  postCard: { backgroundColor: 'white', borderRadius: 16, padding: 20, marginBottom: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 8, elevation: 3, borderWidth: 1, borderColor: '#F0F0F0', position: 'relative', overflow: 'hidden' },
-  postSnowContainer: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 1000, pointerEvents: 'none' },
-  postHeader: { marginBottom: 16 },
-  authorInfo: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
-  authorTextContainer: { flex: 1 },
-  messageButton: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#4285F4', justifyContent: 'center', alignItems: 'center', marginLeft: 8 },
+  postsContainer: { flex: 1, padding: screenWidth < 768 ? 4 : 24 },
+  postCard: { backgroundColor: 'white', borderRadius: screenWidth < 768 ? 12 : 16, padding: screenWidth < 768 ? 16 : 20, paddingLeft: screenWidth < 768 ? 32 : 20, marginBottom: screenWidth < 768 ? 16 : 16, minHeight: screenWidth < 768 ? 160 : 'auto', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 8, elevation: 3, borderWidth: 1, borderColor: '#F0F0F0', position: 'relative', overflow: 'hidden' },
+  postSnowContainer: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 0, pointerEvents: 'none' },
+  postHeader: { marginBottom: 16, maxWidth: screenWidth < 768 ? '50%' : '100%', position: 'relative', zIndex: 10 },
+  authorInfo: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, position: 'relative', zIndex: 10 },
+  authorTextContainer: { flex: 1, position: 'relative', zIndex: 10 },
+  messageButton: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#4285F4', justifyContent: 'center', alignItems: 'center', marginLeft: 8, position: 'relative', zIndex: 10 },
   messageButtonText: { fontSize: 18 },
-  authorAvatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#4285F4', justifyContent: 'center', alignItems: 'center' },
+  authorAvatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#4285F4', justifyContent: 'center', alignItems: 'center', position: 'relative', zIndex: 10 },
   authorAvatarText: { fontSize: 16, fontWeight: '600', color: 'white' },
   authorAvatarImage: { width: 40, height: 40, borderRadius: 20 },
-  authorName: { fontSize: 14, fontWeight: '600', color: '#000' },
-  postDate: { fontSize: 12, color: '#999', marginTop: 2 },
-  postTitle: { fontSize: 18, fontWeight: '600', color: '#000', marginBottom: 12 },
-  postPreview: { fontSize: 15, color: '#333', lineHeight: 22, marginBottom: 16 },
-  postImageContainer: { marginBottom: 16 },
-  postImage: { width: 120, height: 120, borderRadius: 8, backgroundColor: '#F8F9FA', marginLeft: 8, marginBottom: 12, alignSelf: 'flex-start' },
-  postImagePlaceholder: { height: 120, backgroundColor: '#F8F9FA', borderRadius: 12, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#E0E0E0' },
-  imageText: { fontSize: 24, color: '#999' },
-  postFooter: { flexDirection: 'row', alignItems: 'center', gap: 20 },
-  likeButton: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  likeIcon: { width: 28, height: 28 },
+  authorName: { fontSize: 14, fontWeight: '600', color: '#000', position: 'relative', zIndex: 10 },
+  postDate: { fontSize: 12, color: '#999', marginTop: 2, position: 'relative', zIndex: 10 },
+  postTitle: { fontSize: 18, fontWeight: '600', color: '#000', marginBottom: 12, maxWidth: screenWidth < 768 ? '50%' : '100%', position: 'relative', zIndex: 10 },
+  postPreview: { fontSize: 15, color: '#333', lineHeight: 22, marginBottom: 16, maxWidth: screenWidth < 768 ? '50%' : '100%', position: 'relative', zIndex: 10 },
+  postImage: { width: 120, height: 120, borderRadius: 8, backgroundColor: '#F8F9FA', marginLeft: 8, marginBottom: 12, alignSelf: 'flex-start', position: 'relative', zIndex: 10 },
+  postFooter: { flexDirection: 'row', alignItems: 'center', gap: 20, position: 'relative', zIndex: 10 },
+  likeButton: { flexDirection: 'row', alignItems: 'center', gap: 6, position: 'relative', zIndex: 10 },
+  likeIcon: { width: 28, height: 28, position: 'relative', zIndex: 10 },
   likedIcon: { fontSize: 16 },
-  likeCount: { fontSize: 14, color: '#666', fontWeight: '500' },
-  commentInfo: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  commentIcon: { width: 20, height: 20 },
-  commentCount: { fontSize: 14, color: '#666', fontWeight: '500' },
-  fab: { position: 'absolute', right: 24, bottom: 24, width: 56, height: 56, borderRadius: 28, backgroundColor: '#4285F4', justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 8 },
+  likeCount: { fontSize: 14, color: '#666', fontWeight: '500', position: 'relative', zIndex: 10 },
+  commentInfo: { flexDirection: 'row', alignItems: 'center', gap: 6, position: 'relative', zIndex: 10 },
+  commentIcon: { width: 20, height: 20, position: 'relative', zIndex: 10 },
+  commentCount: { fontSize: 14, color: '#666', fontWeight: '500', position: 'relative', zIndex: 10 },
+  fab: { position: 'absolute', right: screenWidth < 768 ? 16 : 24, bottom: screenWidth < 768 ? 16 : 24, width: 56, height: 56, borderRadius: 28, backgroundColor: '#4285F4', justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 8, zIndex: 1500 },
   fabText: { fontSize: 24, color: 'white', fontWeight: '300' },
+  
+  // 모달 스타일
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.5)' },
   createModalContent: { flex: 1, backgroundColor: 'white', marginTop: 50, borderTopLeftRadius: 20, borderTopRightRadius: 20 },
   createModalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
@@ -1198,7 +1304,6 @@ const styles = StyleSheet.create({
   contentInput: { fontSize: 16, color: '#000', minHeight: 120, textAlignVertical: 'top', marginBottom: 20 },
   selectedImageContainer: { marginBottom: 20, position: 'relative' },
   selectedImagePreview: { width: '100%', height: 200, borderRadius: 12, backgroundColor: '#f0f0f0' },
-  selectedImageText: { fontSize: 16, color: '#666' },
   removeImageButton: { position: 'absolute', top: 10, right: 10, width: 24, height: 24, borderRadius: 12, backgroundColor: 'rgba(0, 0, 0, 0.6)', justifyContent: 'center', alignItems: 'center' },
   removeImageText: { fontSize: 14, color: 'white', fontWeight: 'bold' },
   imageSelectButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 16, backgroundColor: '#F8F9FA', borderRadius: 12, borderWidth: 1, borderColor: '#E0E0E0', marginBottom: 20 },
@@ -1210,14 +1315,11 @@ const styles = StyleSheet.create({
   detailPostCard: { backgroundColor: 'white', marginBottom: 24, position: 'relative', overflow: 'hidden', borderRadius: 12 },
   detailPostTitle: { fontSize: 22, fontWeight: '700', color: '#000', marginBottom: 16 },
   detailPostContent: { fontSize: 16, color: '#333', lineHeight: 24, marginBottom: 20 },
-  detailImageContainer: { marginBottom: 20 },
   detailImage: { width: 180, height: 180, borderRadius: 12, backgroundColor: '#F8F9FA', marginLeft: 8, marginBottom: 16, alignSelf: 'flex-start' },
-  detailImagePlaceholder: { height: 200, backgroundColor: '#F8F9FA', borderRadius: 12, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#E0E0E0' },
   detailPostFooter: { borderTopWidth: 1, borderTopColor: '#F0F0F0', paddingTop: 16 },
   commentsSection: { gap: 16 },
   commentsTitle: { fontSize: 18, fontWeight: '600', color: '#000', marginBottom: 8 },
   commentCard: { backgroundColor: '#F8F9FA', borderRadius: 12, padding: 16, marginBottom: 12, position: 'relative', overflow: 'hidden' },
-  commentSnowContainer: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 12, overflow: 'hidden', zIndex: 1 },
   commentHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, position: 'relative', zIndex: 2 },
   commentAvatar: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#34A853', justifyContent: 'center', alignItems: 'center' },
   commentAvatarText: { fontSize: 14, fontWeight: '600', color: 'white' },
@@ -1246,4 +1348,204 @@ const styles = StyleSheet.create({
   recipientText: { fontSize: 16, fontWeight: '500', color: '#333', marginBottom: 20 },
   messageInput: { flex: 1, borderWidth: 1, borderColor: '#E0E0E0', borderRadius: 12, padding: 16, fontSize: 16, color: '#000', textAlignVertical: 'top', minHeight: 120 },
   characterCount: { fontSize: 12, color: '#999', textAlign: 'right', marginTop: 8 },
+  
+  // 핸드폰 전용 스타일
+  phoneContainer: {
+    flexDirection: 'column',
+  },
+  phoneMainContent: {
+    flex: 1,
+    paddingHorizontal: 12,
+  },
+  phoneScrollContainer: {
+    paddingHorizontal: 12,
+    paddingVertical: 16,
+  },
+  phoneHeader: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  
+  // 태블릿 전용 스타일 (기존 스타일의 85% 크기와 간격)
+  tabletContainer: {
+    flexDirection: 'row',
+  },
+  tabletMainContent: {
+    flex: 1,
+    paddingHorizontal: 20,
+  },
+  tabletScrollContainer: {
+    paddingHorizontal: 24,
+    paddingVertical: 24,
+  },
+  tabletHeader: {
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+  },
+  tabletPostCard: {
+    padding: 17,
+    marginBottom: 13,
+  },
+  tabletPostTitle: {
+    fontSize: 18,
+    marginBottom: 11,
+  },
+  tabletPostContent: {
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 11,
+  },
+  tabletSectionTitle: {
+    fontSize: 20,
+    marginBottom: 14,
+  },
 });
+
+// 반응형 스타일 함수 추가
+const getResponsiveStyles = () => {
+  const { width, height } = Dimensions.get('window');
+  
+  // 더 작은 핸드폰 (width < 360)
+  if (width < 360) {
+    return {
+      header: { paddingHorizontal: 12, paddingVertical: 10 },
+      title: { fontSize: 22 },
+      homeText: { fontSize: 14 },
+      profileIcon: { width: 36, height: 36, borderRadius: 18 },
+      profileImage: { width: 36, height: 36, borderRadius: 18 },
+      defaultProfileIcon: { width: 36, height: 36, borderRadius: 18 },
+      profileText: { fontSize: 14 },
+      sidebar: { width: 260 },
+      mobileSidebarContent: { width: '75%', paddingHorizontal: 16 },
+      searchContainer: { height: 38, paddingHorizontal: 12, marginBottom: 18 },
+      searchIconText: { fontSize: 12 },
+      searchInput: { fontSize: 13 },
+      subjectItem: { paddingVertical: 10, paddingHorizontal: 12 },
+      subjectText: { fontSize: 14 },
+      communityHeader: { padding: 12, paddingBottom: 10 },
+      communityTitle: { fontSize: 18, marginBottom: 6 },
+      communitySubtitle: { fontSize: 13 },
+      postsContainer: { padding: 8 },
+      postCard: { borderRadius: 10, padding: 12, paddingLeft: 24, marginBottom: 12, minHeight: 140 },
+      postHeader: { marginBottom: 12 },
+      authorAvatar: { width: 36, height: 36, borderRadius: 18 },
+      authorAvatarText: { fontSize: 15 },
+      authorAvatarImage: { width: 36, height: 36, borderRadius: 18 },
+      authorName: { fontSize: 13, fontWeight: '700', letterSpacing: 0.3 },
+      postDate: { fontSize: 11, marginTop: 3 },
+      postTitle: { fontSize: 15, marginBottom: 10 },
+      postPreview: { fontSize: 13, lineHeight: 18, marginBottom: 12 },
+      postImage: { width: 100, height: 100, borderRadius: 6 },
+      likeIcon: { width: 24, height: 24 },
+      likeCount: { fontSize: 12 },
+      commentIcon: { width: 18, height: 18 },
+      commentCount: { fontSize: 12 },
+      fab: { right: 12, bottom: 12, width: 48, height: 48, borderRadius: 24 },
+      fabText: { fontSize: 20 },
+      messageButton: { width: 32, height: 32, borderRadius: 16 },
+      messageButtonText: { fontSize: 14 },
+    };
+  }
+  
+  // 일반 핸드폰 (360 <= width < 768)
+  if (width < 768) {
+    return {
+      header: { paddingHorizontal: 16, paddingVertical: 12 },
+      title: { fontSize: 24 },
+      homeText: { fontSize: 15 },
+      communityHeader: { padding: 16, paddingBottom: 12 },
+      communityTitle: { fontSize: 22, marginBottom: 8 },
+      communitySubtitle: { fontSize: 15 },
+      postsContainer: { padding: 12 },
+      postCard: { borderRadius: 12, padding: 16, paddingLeft: 32, marginBottom: 16, minHeight: 160 },
+      authorAvatar: { width: 40, height: 40, borderRadius: 20 },
+      authorAvatarText: { fontSize: 16 },
+      authorAvatarImage: { width: 40, height: 40, borderRadius: 20 },
+      authorName: { fontSize: 14, fontWeight: '700', letterSpacing: 0.4, color: '#1a1a1a' },
+      postDate: { fontSize: 12, marginTop: 4, color: '#888' },
+      fab: { right: 16, bottom: 16 },
+    };
+  }
+  
+  // 작은 태블릿 (768 <= width < 1024)
+  if (width < 1024) {
+    return {
+      header: { paddingHorizontal: 20, paddingVertical: 14 },
+      title: { fontSize: 24 },
+      homeText: { fontSize: 15 },
+      sidebar: { width: 280 },
+      searchContainer: { height: 40, paddingHorizontal: 14, marginBottom: 20 },
+      subjectItem: { paddingVertical: 12, paddingHorizontal: 14 },
+      subjectText: { fontSize: 15 },
+      communityHeader: { padding: 24, paddingBottom: 18 },
+      communityTitle: { fontSize: 24, marginBottom: 10 },
+      communitySubtitle: { fontSize: 15 },
+      scrollContentContainer: { padding: 24, gap: 24 },
+      postsContainer: { padding: 18 },
+      postCard: { borderRadius: 14, padding: 17, marginBottom: 13 },
+      postTitle: { fontSize: 16, marginBottom: 10 },
+      postPreview: { fontSize: 14, lineHeight: 20, marginBottom: 13 },
+      postImage: { width: 110, height: 110 },
+      fab: { right: 20, bottom: 20, width: 52, height: 52, borderRadius: 26 },
+      fabText: { fontSize: 22 },
+    };
+  }
+  
+  // 큰 태블릿 (1024 <= width < 1440)
+  if (width < 1440) {
+    return {
+      header: { paddingHorizontal: 24, paddingVertical: 16 },
+      title: { fontSize: 26 },
+      homeText: { fontSize: 16 },
+      sidebar: { width: 320 },
+      searchContainer: { height: 44, paddingHorizontal: 16, marginBottom: 24 },
+      subjectItem: { paddingVertical: 14, paddingHorizontal: 16 },
+      subjectText: { fontSize: 16 },
+      communityHeader: { padding: 32, paddingBottom: 24 },
+      communityTitle: { fontSize: 28, marginBottom: 8 },
+      communitySubtitle: { fontSize: 16 },
+      scrollContentContainer: { padding: 32, gap: 32 },
+      postsContainer: { padding: 24 },
+      postCard: { borderRadius: 16, padding: 20, marginBottom: 16 },
+      postTitle: { fontSize: 18, marginBottom: 12 },
+      postPreview: { fontSize: 15, lineHeight: 22, marginBottom: 16 },
+      postImage: { width: 120, height: 120 },
+      fab: { right: 24, bottom: 24, width: 56, height: 56, borderRadius: 28 },
+      fabText: { fontSize: 24 },
+    };
+  }
+  
+  // 데스크톱 (width >= 1440)
+  return {
+    header: { paddingHorizontal: 32, paddingVertical: 18 },
+    title: { fontSize: 28 },
+    homeText: { fontSize: 17 },
+    sidebar: { width: 360 },
+    searchContainer: { height: 48, paddingHorizontal: 18, marginBottom: 28 },
+    subjectItem: { paddingVertical: 16, paddingHorizontal: 18 },
+    subjectText: { fontSize: 17 },
+    communityHeader: { padding: 40, paddingBottom: 28 },
+    communityTitle: { fontSize: 32, marginBottom: 10 },
+    communitySubtitle: { fontSize: 17 },
+    scrollContentContainer: { padding: 40, gap: 40 },
+    postsContainer: { padding: 32 },
+    postCard: { borderRadius: 18, padding: 24, marginBottom: 20 },
+    postHeader: { marginBottom: 18 },
+    authorAvatar: { width: 44, height: 44, borderRadius: 22 },
+    authorAvatarText: { fontSize: 17 },
+    authorAvatarImage: { width: 44, height: 44, borderRadius: 22 },
+    authorName: { fontSize: 15 },
+    postDate: { fontSize: 13 },
+    postTitle: { fontSize: 20, marginBottom: 14 },
+    postPreview: { fontSize: 16, lineHeight: 24, marginBottom: 18 },
+    postImage: { width: 140, height: 140 },
+    likeIcon: { width: 30, height: 30 },
+    likeCount: { fontSize: 15 },
+    commentIcon: { width: 22, height: 22 },
+    commentCount: { fontSize: 15 },
+    fab: { right: 32, bottom: 32, width: 64, height: 64, borderRadius: 32 },
+    fabText: { fontSize: 28 },
+    messageButton: { width: 44, height: 44, borderRadius: 22 },
+    messageButtonText: { fontSize: 20 },
+  };
+};

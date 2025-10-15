@@ -6,6 +6,7 @@ class EffectSettingsService {
       snowEffect: false,
       autumnEffect: false,
       rainEffect: false,
+      shootingStarEffect: false,
       isPremiumUser: false,
       effectIntensity: 30,
     };
@@ -67,6 +68,17 @@ class EffectSettingsService {
     return this.settings.rainEffect;
   }
 
+  // 유성우 효과 설정 토글
+  async toggleShootingStarEffect() {
+    if (!this.settings.isPremiumUser) {
+      throw new Error('프리미엄 사용자만 이용할 수 있는 기능입니다.');
+    }
+    
+    this.settings.shootingStarEffect = !this.settings.shootingStarEffect;
+    await this.saveSettings();
+    return this.settings.shootingStarEffect;
+  }
+
   // 효과 설정 (하나만 선택 가능)
   async setEffect(effectType) {
     if (!this.settings.isPremiumUser) {
@@ -77,6 +89,7 @@ class EffectSettingsService {
     this.settings.snowEffect = false;
     this.settings.autumnEffect = false;
     this.settings.rainEffect = false;
+    this.settings.shootingStarEffect = false;
     
     // 선택된 효과만 활성화
     switch (effectType) {
@@ -88,6 +101,9 @@ class EffectSettingsService {
         break;
       case 'rain':
         this.settings.rainEffect = true;
+        break;
+      case 'shootingStar':
+        this.settings.shootingStarEffect = true;
         break;
       case 'none':
       default:
@@ -102,16 +118,16 @@ class EffectSettingsService {
   // 프리미엄 상태 설정
   async setPremiumStatus(isPremium) {
     this.settings.isPremiumUser = isPremium;
-    
     // 프리미엄이 아니면 모든 효과 비활성화
     if (!isPremium) {
       this.settings.snowEffect = false;
       this.settings.autumnEffect = false;
       this.settings.rainEffect = false;
+      this.settings.shootingStarEffect = false;
     }
     
     await this.saveSettings();
-    console.log('💎 프리미엄 상태 변경:', isPremium);
+    console.log('📎 프리미엄 상태 변경:', isPremium);
   }
 
   // 효과 강도 설정
@@ -145,6 +161,10 @@ class EffectSettingsService {
     return this.settings.isPremiumUser && this.settings.rainEffect;
   }
 
+  // 유성우 효과 사용 가능 여부 확인
+  canUseShootingStarEffect() {
+    return this.settings.isPremiumUser && this.settings.shootingStarEffect;
+  }
 
   // 프리미엄 사용자 여부 확인
   isPremium() {

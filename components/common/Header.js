@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { colors, typography, spacing, components } from '../../styles/designSystem';
+import { responsive } from '../../utils/responsive';
 
 export default function Header({ 
   title, 
@@ -78,7 +79,8 @@ export default function Header({
 const styles = StyleSheet.create({
   header: {
     ...components.header,
-    paddingVertical: spacing.md
+    paddingVertical: responsive.spacing(spacing.md),
+    height: responsive.size(60)
   },
   leftSection: {
     flexDirection: 'row',
@@ -90,22 +92,22 @@ const styles = StyleSheet.create({
     alignItems: 'center'
   },
   backButton: {
-    marginRight: spacing.md
+    marginRight: responsive.spacing(spacing.md)
   },
   backButtonText: {
-    fontSize: typography.fontSize.base,
+    fontSize: responsive.fontSize(typography.fontSize.base),
     fontWeight: typography.fontWeight.medium
   },
   hamburgerButton: {
-    width: 24,
-    height: 24,
+    width: responsive.size(24),
+    height: responsive.size(24),
     justifyContent: 'space-between',
-    paddingVertical: 2,
-    marginRight: spacing.md
+    paddingVertical: responsive.spacing(2),
+    marginRight: responsive.spacing(spacing.md)
   },
   hamburgerLine: {
     width: '100%',
-    height: 2,
+    height: responsive.size(2),
     backgroundColor: colors.textSecondary,
     borderRadius: 1
   },
@@ -113,13 +115,13 @@ const styles = StyleSheet.create({
     flex: 1
   },
   title: {
-    fontSize: typography.fontSize.lg,
+    fontSize: responsive.fontSize(typography.fontSize.lg),
     fontWeight: typography.fontWeight.bold,
-    lineHeight: typography.lineHeight.tight * typography.fontSize.lg
+    lineHeight: responsive.fontSize(typography.lineHeight.tight * typography.fontSize.lg)
   },
   subtitle: {
-    fontSize: typography.fontSize.sm,
+    fontSize: responsive.fontSize(typography.fontSize.sm),
     fontWeight: typography.fontWeight.normal,
-    marginTop: 2
+    marginTop: responsive.spacing(2)
   }
 });

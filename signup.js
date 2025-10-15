@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import OrientationGuard from './components/OrientationGuard';
-import { getScreenInfo, responsive, createResponsiveStyles } from './utils/responsive';
+import { getScreenInfo, responsive } from './utils/responsive';
 import emailService from './emailService';
 import database from './database';
 
@@ -211,72 +211,24 @@ export default function SignUp() {
         return `${mins}:${secs.toString().padStart(2, '0')}`;
     };
 
-    // 반응형 스타일 생성
-    const responsiveStyles = createResponsiveStyles(
-        {}, // 기본 스타일
-        { // 핸드폰 스타일
-            safeArea: {
-                flex: 1,
-                backgroundColor: '#fff',
-                paddingTop: responsive.spacing(20), // 상태바 여백 추가
-            },
-            container: {
-                flex: 1,
-                justifyContent: 'center',
-                alignItems: 'center',
-                paddingHorizontal: responsive.spacing(20),
-                paddingVertical: responsive.spacing(20),
-            },
-            title: {
-                fontSize: responsive.fontSize(36),
-                fontWeight: 'bold',
-                color: '#333',
-                marginBottom: responsive.spacing(8),
-                alignSelf: 'flex-start',
-                textAlign: 'left',
-            },
-            input: {
-                borderWidth: 1,
-                borderColor: '#ddd',
-                borderRadius: responsive.spacing(8),
-                paddingHorizontal: responsive.spacing(16),
-                paddingVertical: responsive.spacing(12),
-                fontSize: responsive.fontSize(16),
-                backgroundColor: '#f9f9f9',
-                marginBottom: responsive.spacing(12),
-            },
-            button: {
-                backgroundColor: '#007AFF',
-                paddingVertical: responsive.spacing(14),
-                borderRadius: responsive.spacing(8),
-                alignItems: 'center',
-                marginBottom: responsive.spacing(12),
-            },
-            buttonText: {
-                color: 'white',
-                fontSize: responsive.fontSize(16),
-                fontWeight: '600',
-            },
-            linkText: {
-                color: '#007AFF',
-                fontSize: responsive.fontSize(16),
-                textAlign: 'center',
-                marginTop: responsive.spacing(16),
-            },
-        }
-    );
+    // 반응형 스타일 선택
+    const styles = screenInfo.isPhone ? phoneStyles : baseStyles;
 
     return (
-        <OrientationGuard screenName="회원가입">
-            <SafeAreaView style={[styles.safeArea, responsiveStyles.safeArea]}>
-            {/* 상단 바 - 모바일에서 숨김 */}
-            {!screenInfo.isPhone && (
-                <View style={styles.position1}>
-                    <View style={styles.hr}></View>
-                </View>
-            )}
+        <OrientationGuard screenName="회원가입" allowPortrait={true}>
+            <SafeAreaView style={styles.safeArea}>
+            {/* 상단 바 */}
+            <View style={[
+                styles.position1,
+                screenInfo.isPhone && styles.position1Mobile
+            ]}>
+                <View style={[
+                    styles.hr,
+                    screenInfo.isPhone && styles.hrMobile
+                ]}></View>
+            </View>
             
-            <View style={[styles.position2, screenInfo.isPhone && responsiveStyles.container]}>
+            <View style={styles.position2}>
                 {/* 로고 영역 - 모바일에서 숨김 */}
                 {!screenInfo.isPhone && (
                     <>
@@ -290,11 +242,11 @@ export default function SignUp() {
                 
                 <View style={styles.position2_2}>
                     <View style={styles.formContainer}>
-                        <Text style={[styles.title, screenInfo.isPhone && responsiveStyles.title]}>Sign Up</Text>
+                        <Text style={styles.title}>Sign Up</Text>
                         
                         {/* 이름 입력 */}
                         <TextInput
-                            style={[styles.textInput, screenInfo.isPhone && responsiveStyles.input]}
+                            style={styles.textInput}
                             placeholder="이름을 입력하세요"
                             placeholderTextColor="#999"
                             value={name}
@@ -305,7 +257,7 @@ export default function SignUp() {
                         {/* Gmail 입력 */}
                         <View style={styles.emailContainer}>
                             <TextInput
-                                style={[styles.textInput, styles.emailInput, screenInfo.isPhone && responsiveStyles.input]}
+                                style={[styles.textInput, styles.emailInput]}
                                 placeholder="Gmail 주소를 입력하세요"
                                 placeholderTextColor="#999"
                                 value={email}
@@ -315,14 +267,14 @@ export default function SignUp() {
                                 editable={!isEmailVerified}
                             />
                             <TouchableOpacity
-                                style={[styles.verifyButton, isEmailVerified && styles.verifiedButton, screenInfo.isPhone && responsiveStyles.button]}
+                                style={[styles.verifyButton, isEmailVerified && styles.verifiedButton]}
                                 onPress={sendVerificationCode}
                                 disabled={isLoading || isEmailVerified}
                             >
                                 {isLoading ? (
                                     <ActivityIndicator size="small" color="#fff" />
                                 ) : (
-                                    <Text style={[styles.verifyButtonText, screenInfo.isPhone && responsiveStyles.buttonText]}>
+                                    <Text style={styles.verifyButtonText}>
                                         {isEmailVerified ? '인증완료' : '인증코드 발송'}
                                     </Text>
                                 )}
@@ -412,21 +364,26 @@ export default function SignUp() {
                 </View>
             </View>
             
-            {/* 하단 바 - 모바일에서 숨김 */}
-            {!screenInfo.isPhone && (
-                <View style={styles.position3}>
-                    <View style={styles.hr}></View>
-                </View>
-            )}
+            {/* 하단 바 */}
+            <View style={[
+                styles.position3,
+                screenInfo.isPhone && styles.position3Mobile
+            ]}>
+                <View style={[
+                    styles.hr,
+                    screenInfo.isPhone && styles.hrMobile
+                ]}></View>
+            </View>
             </SafeAreaView>
         </OrientationGuard>
     );
 }
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
     safeArea: { 
         flex: 1, 
-        backgroundColor: 'white' 
+        backgroundColor: 'white',
+        paddingTop: 20,
     },
     dividerLine: { 
         width: 1, 
@@ -439,11 +396,17 @@ const styles = StyleSheet.create({
         marginVertical: 5, 
         width: '100%' 
     },
+    hrMobile: {
+        height: 20,
+    },
     position1: { 
         width: '100%', 
         justifyContent: 'center', 
         alignSelf: 'flex-start', 
         marginTop: 25 
+    },
+    position1Mobile: {
+        marginTop: 10,
     },
     position2: { 
         width: "100%", 
@@ -455,6 +418,9 @@ const styles = StyleSheet.create({
         justifyContent: 'center', 
         alignSelf: 'flex-end', 
         marginBottom: 25 
+    },
+    position3Mobile: {
+        marginBottom: 10,
     },
     position2_1: { 
         flex: 1, 
@@ -492,7 +458,8 @@ const styles = StyleSheet.create({
         paddingHorizontal: 15, 
         marginVertical: 8, 
         fontSize: 16, 
-        backgroundColor: '#fff' 
+        backgroundColor: '#fff',
+        color: '#000000'
     },
     emailContainer: {
         width: '100%',
@@ -588,95 +555,161 @@ const phoneStyles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: '#fff',
+    paddingTop: 20,
   },
   position1: {
-    height: responsive.heightPercent(8),
-    backgroundColor: '#4A90E2',
+    width: '100%',
+    justifyContent: 'center',
+    alignSelf: 'flex-start',
+    marginTop: 25,
+  },
+  position1Mobile: {
+    marginTop: 10,
   },
   hr: {
-    height: '100%',
-    backgroundColor: '#4A90E2',
+    height: 30,
+    backgroundColor: 'black',
+    marginVertical: 5,
+    width: '100%',
+  },
+  hrMobile: {
+    height: 20,
   },
   position2: {
     flex: 1,
-    paddingHorizontal: responsive.spacing(20),
-    paddingVertical: responsive.spacing(30),
+    paddingHorizontal: 20,
+    paddingVertical: 30,
     justifyContent: 'center',
   },
   position2_1: {
+    display: 'none',
+  },
+  position2_2: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: responsive.spacing(30),
+    padding: 20,
   },
-  img: {
-    width: responsive.size(120),
-    height: responsive.size(120),
+  formContainer: {
+    width: '100%',
+    maxWidth: 400,
+    alignItems: 'center',
   },
-  dividerLine: {
-    height: 1,
-    backgroundColor: '#e0e0e0',
-    marginVertical: responsive.spacing(20),
+  title: {
+    fontSize: 32,
+    fontWeight: '700',
+    marginBottom: 24,
+    color: '#333',
+    alignSelf: 'flex-start',
+    textAlign: 'left',
   },
-  position3: {
-    marginBottom: responsive.spacing(20),
-  },
-  input: {
+  textInput: {
+    width: '100%',
+    height: 52,
     borderWidth: 1,
     borderColor: '#ddd',
     borderRadius: 8,
-    paddingHorizontal: responsive.spacing(15),
-    paddingVertical: responsive.spacing(12),
-    fontSize: responsive.fontSize(14),
-    marginBottom: responsive.spacing(12),
-    backgroundColor: '#f9f9f9',
+    paddingHorizontal: 15,
+    marginVertical: 8,
+    fontSize: 15,
+    backgroundColor: '#fff',
+    color: '#000000',
   },
-  button: {
-    backgroundColor: '#4A90E2',
+  emailContainer: {
+    width: '100%',
+    flexDirection: 'column',
+    marginVertical: 8,
+  },
+  emailInput: {
+    marginBottom: 8,
+    marginVertical: 0,
+  },
+  verifyButton: {
+    backgroundColor: '#007AFF',
+    paddingHorizontal: 15,
+    height: 52,
     borderRadius: 8,
-    paddingVertical: responsive.spacing(15),
     alignItems: 'center',
-    marginBottom: responsive.spacing(15),
+    justifyContent: 'center',
+    width: '100%',
   },
-  buttonText: {
+  verifiedButton: {
+    backgroundColor: '#28a745',
+  },
+  verifyButtonText: {
     color: '#fff',
-    fontSize: responsive.fontSize(16),
+    fontSize: 14,
     fontWeight: '600',
-  },
-  linkText: {
-    color: '#4A90E2',
-    fontSize: responsive.fontSize(14),
-    textAlign: 'center',
-    marginBottom: responsive.spacing(20),
   },
   verificationContainer: {
-    flexDirection: 'row',
+    width: '100%',
     alignItems: 'center',
-    gap: responsive.spacing(10),
+    marginVertical: 10,
   },
-  verificationInput: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: '#ddd',
+  codeInput: {
+    textAlign: 'center',
+    fontSize: 18,
+    letterSpacing: 2,
+  },
+  verifyCodeButton: {
+    backgroundColor: '#007AFF',
+    paddingHorizontal: 30,
+    paddingVertical: 12,
     borderRadius: 8,
-    paddingHorizontal: responsive.spacing(15),
-    paddingVertical: responsive.spacing(12),
-    fontSize: responsive.fontSize(14),
-    backgroundColor: '#f9f9f9',
+    marginTop: 10,
   },
-  verificationButton: {
-    backgroundColor: '#28a745',
-    borderRadius: 8,
-    paddingVertical: responsive.spacing(12),
-    paddingHorizontal: responsive.spacing(15),
-  },
-  verificationButtonText: {
-    color: '#fff',
-    fontSize: responsive.fontSize(14),
-    fontWeight: '600',
+  timerContainer: {
+    marginTop: 10,
+    alignItems: 'center',
   },
   timerText: {
-    fontSize: responsive.fontSize(12),
-    color: '#dc3545',
-    textAlign: 'center',
-    marginTop: responsive.spacing(5),
+    color: '#666',
+    fontSize: 14,
+  },
+  resendText: {
+    color: '#007AFF',
+    fontSize: 14,
+    textDecorationLine: 'underline',
+  },
+  loginLink: {
+    marginTop: 15,
+    marginBottom: 10,
+  },
+  loginLinkText: {
+    color: '#007AFF',
+    fontSize: 15,
+  },
+  signUpButton: {
+    width: '100%',
+    height: 52,
+    backgroundColor: '#007AFF',
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 20,
+  },
+  disabledButton: {
+    opacity: 0.6,
+  },
+  signUpButtonText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  img: {
+    width: 120,
+    height: 120,
+  },
+  dividerLine: {
+    display: 'none',
+  },
+  position3: {
+    width: '100%',
+    justifyContent: 'center',
+    alignSelf: 'flex-end',
+    marginBottom: 25,
+  },
+  position3Mobile: {
+    marginBottom: 10,
   },
 });

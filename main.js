@@ -434,6 +434,14 @@ export default function Main() {
   const handleSubjectPress = (subjectName) => {
     console.log('클릭된 메뉴:', subjectName);
     setActiveSubject(subjectName);
+    
+    // 모바일에서 사이드바 닫기
+    if (screenInfo.isPhone) {
+      setSidebarVisible(false);
+      // 애니메이션 값 초기화
+      slideAnim.setValue(-300);
+    }
+    
     const screenMap = {
       '타이머': 'Timer',
       '플래너': 'Planner',
@@ -718,14 +726,7 @@ export default function Main() {
                   <TouchableOpacity
                     key={index}
                     style={[styles.subjectItem, activeSubject === subject && styles.activeSubjectItem]}
-                    onPress={() => {
-                      // 먼저 사이드바를 즉시 숨김
-                      setSidebarVisible(false);
-                      // 애니메이션 값 초기화
-                      slideAnim.setValue(-300);
-                      // 그 다음 네비게이션 실행
-                      handleSubjectPress(subject);
-                    }}
+                    onPress={() => handleSubjectPress(subject)}
                   >
                     <Text style={[styles.subjectText, activeSubject === subject && styles.activeSubjectText]}>
                       {subject}
@@ -1509,3 +1510,138 @@ const styles = StyleSheet.create({
     transform: [{ rotate: '-15deg' }], // 텍스트는 다시 정렬
   },
 });
+
+// 반응형 스타일 함수 추가
+const getResponsiveStylesForMain = () => {
+  const { width, height } = Dimensions.get('window');
+  
+  // 더 작은 핸드폰 (width < 360)
+  if (width < 360) {
+    return {
+      header: { paddingHorizontal: 12, paddingVertical: 10 },
+      title: { fontSize: 22 },
+      homeText: { fontSize: 14 },
+      profileIcon: { width: 36, height: 36, borderRadius: 18 },
+      profileImage: { width: 36, height: 36, borderRadius: 18 },
+      defaultProfileIcon: { width: 36, height: 36, borderRadius: 18 },
+      profileText: { fontSize: 14 },
+      sidebar: { width: 260 },
+      mobileSidebarContent: { width: '75%', paddingHorizontal: 16 },
+      searchContainer: { height: 38, paddingHorizontal: 12, marginBottom: 18 },
+      searchIconText: { fontSize: 12 },
+      searchInput: { fontSize: 13 },
+      subjectItem: { paddingVertical: 10, paddingHorizontal: 12 },
+      subjectText: { fontSize: 14 },
+      scrollContentContainer: { padding: 16, gap: 16, paddingBottom: 48 },
+      sectionTitle: { fontSize: 18 },
+      studyTimeBox: { margin: 10, padding: 14 },
+      studyTimeTitle: { fontSize: 14 },
+      studyTimeValue: { fontSize: 26 },
+      studyTimeDate: { fontSize: 12 },
+      folderItem: { width: 100, height: 130 },
+      addFolderItem: { width: 100, height: 130 },
+      folderTitle: { fontSize: 13 },
+      folderDate: { fontSize: 10 },
+      studyGroupSmallCard: { width: '100%', padding: 10 },
+      studyGroupSmallName: { fontSize: 13 },
+      studyGroupSmallDescription: { fontSize: 11, lineHeight: 14 },
+    };
+  }
+  
+  // 일반 핸드폰 (360 <= width < 768)
+  if (width < 768) {
+    return {
+      header: { paddingHorizontal: 16, paddingVertical: 12 },
+      title: { fontSize: 24 },
+      homeText: { fontSize: 15 },
+      scrollContentContainer: { padding: 20, gap: 20, paddingBottom: 56 },
+      sectionTitle: { fontSize: 20 },
+      studyTimeBox: { margin: 12, padding: 16 },
+      studyTimeTitle: { fontSize: 15 },
+      studyTimeValue: { fontSize: 28 },
+      studyTimeDate: { fontSize: 13 },
+      folderItem: { width: 110, height: 140 },
+      addFolderItem: { width: 110, height: 140 },
+    };
+  }
+  
+  // 작은 태블릿 (768 <= width < 1024)
+  if (width < 1024) {
+    return {
+      header: { paddingHorizontal: 20, paddingVertical: 14 },
+      title: { fontSize: 24 },
+      homeText: { fontSize: 15 },
+      sidebar: { width: 280 },
+      searchContainer: { height: 40, paddingHorizontal: 14, marginBottom: 20 },
+      subjectItem: { paddingVertical: 12, paddingHorizontal: 14 },
+      subjectText: { fontSize: 15 },
+      scrollContentContainer: { padding: 24, gap: 24, paddingBottom: 56 },
+      sectionTitle: { fontSize: 20 },
+      studyTimeBox: { margin: 14, padding: 18 },
+      studyTimeTitle: { fontSize: 15 },
+      studyTimeValue: { fontSize: 30 },
+      studyTimeDate: { fontSize: 13 },
+      folderItem: { width: 130, height: 165 },
+      addFolderItem: { width: 130, height: 165 },
+      folderTitle: { fontSize: 15 },
+      folderDate: { fontSize: 11 },
+      studyGroupCard: { width: 180, padding: 14 },
+      studyGroupName: { fontSize: 15 },
+      studyGroupDescription: { fontSize: 13, lineHeight: 18 },
+    };
+  }
+  
+  // 큰 태블릿 (1024 <= width < 1440)
+  if (width < 1440) {
+    return {
+      header: { paddingHorizontal: 24, paddingVertical: 16 },
+      title: { fontSize: 26 },
+      homeText: { fontSize: 16 },
+      sidebar: { width: 320 },
+      searchContainer: { height: 44, paddingHorizontal: 16, marginBottom: 24 },
+      subjectItem: { paddingVertical: 14, paddingHorizontal: 16 },
+      subjectText: { fontSize: 16 },
+      scrollContentContainer: { padding: 32, gap: 32, paddingBottom: 64 },
+      sectionTitle: { fontSize: 22 },
+      studyTimeBox: { margin: 16, padding: 20 },
+      studyTimeTitle: { fontSize: 16 },
+      studyTimeValue: { fontSize: 32 },
+      studyTimeDate: { fontSize: 14 },
+      folderItem: { width: 140, height: 180 },
+      addFolderItem: { width: 140, height: 180 },
+      folderTitle: { fontSize: 16 },
+      folderDate: { fontSize: 12 },
+      studyGroupCard: { width: 200, padding: 16 },
+      studyGroupName: { fontSize: 16 },
+      studyGroupDescription: { fontSize: 14, lineHeight: 20 },
+    };
+  }
+  
+  // 데스크톱 (width >= 1440)
+  return {
+    header: { paddingHorizontal: 32, paddingVertical: 18 },
+    title: { fontSize: 28 },
+    homeText: { fontSize: 17 },
+    sidebar: { width: 360 },
+    searchContainer: { height: 48, paddingHorizontal: 18, marginBottom: 28 },
+    subjectItem: { paddingVertical: 16, paddingHorizontal: 18 },
+    subjectText: { fontSize: 17 },
+    scrollContentContainer: { padding: 40, gap: 40, paddingBottom: 80 },
+    sectionTitle: { fontSize: 24 },
+    studyTimeBox: { margin: 20, padding: 24 },
+    studyTimeTitle: { fontSize: 17 },
+    studyTimeValue: { fontSize: 36 },
+    studyTimeDate: { fontSize: 15 },
+    folderItem: { width: 160, height: 200 },
+    addFolderItem: { width: 160, height: 200 },
+    folderTitle: { fontSize: 17 },
+    folderDate: { fontSize: 13 },
+    studyGroupCard: { width: 220, padding: 18 },
+    studyGroupName: { fontSize: 17 },
+    studyGroupDescription: { fontSize: 15, lineHeight: 22 },
+    profileIcon: { width: 48, height: 48, borderRadius: 24 },
+    profileImage: { width: 48, height: 48, borderRadius: 24 },
+    defaultProfileIcon: { width: 48, height: 48, borderRadius: 24 },
+    profileText: { fontSize: 17 },
+  };
+};

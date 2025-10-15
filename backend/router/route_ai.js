@@ -149,7 +149,7 @@ router.post('/chat', authenticateByEmail, async (req, res) => {
         console.log('사용자:', req.user.email);
         console.log('요청 본문:', req.body);
         
-        const { message, conversationHistory } = req.body;
+        const { message, conversationHistory, systemPrompt } = req.body;
 
         if (!message || !message.trim()) {
             console.log('메시지가 비어있음');
@@ -161,13 +161,8 @@ router.post('/chat', authenticateByEmail, async (req, res) => {
 
         console.log('OpenAI API 호출 시작');
 
-        // OpenAI API 호출
-        const response = await axios.post(OPENAI_API_URL, {
-            model: 'gpt-4o',
-            messages: [
-                {
-                    role: 'system',
-                    content: `당신은 StudyTime 앱의 AI 학습 어시스턴트예요. 학생들의 학습을 도와주는 친근하고 도움이 되는 AI입니다.
+        // 시스템 프롬프트 설정 (기본값 또는 전달받은 값 사용)
+        const defaultSystemPrompt = `당신은 StudyTime 앱의 AI 학습 어시스턴트예요. 학생들의 학습을 도와주는 친근하고 도움이 되는 AI입니다.
 
 **답변 형식 규칙:**
 1. **반말 금지**: 항상 "~예요", "~이에요", "~해요" 등의 요체를 사용해요
@@ -185,7 +180,17 @@ router.post('/chat', authenticateByEmail, async (req, res) => {
 **답변 스타일:**
 - 친근하고 공감하는 톤
 - 구체적이고 실용적인 조언
-- 단계별로 명확하게 설명`
+- 단계별로 명확하게 설명`;
+
+        const finalSystemPrompt = systemPrompt || defaultSystemPrompt;
+
+        // OpenAI API 호출
+        const response = await axios.post(OPENAI_API_URL, {
+            model: 'gpt-4o',
+            messages: [
+                {
+                    role: 'system',
+                    content: finalSystemPrompt
                 },
                 ...(conversationHistory || []),
                 {
@@ -241,7 +246,7 @@ router.post('/chat', authenticateByEmail, async (req, res) => {
 // POST /api/ai/analyze-problem - 문제 이미지 분석
 router.post('/analyze-problem', authenticateByEmail, upload.single('image'), async (req, res) => {
     try {
-        const { message } = req.body;
+        const { message, systemPrompt } = req.body;
         const imageFile = req.file;
 
         if (!imageFile) {
@@ -255,19 +260,8 @@ router.post('/analyze-problem', authenticateByEmail, upload.single('image'), asy
         const base64Image = imageFile.buffer.toString('base64');
         const imageDataUrl = `data:${imageFile.mimetype};base64,${base64Image}`;
 
-        // GPT-4 Vision API 호출
-        const response = await fetch(OPENAI_API_URL, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${OPENAI_API_KEY}`,
-            },
-            body: JSON.stringify({
-                model: 'gpt-4o',
-                messages: [
-                    {
-                        role: 'system',
-                        content: `당신은 StudyTime 앱의 학습 문제 분석 AI 어시스턴트예요. 학생들이 올린 문제를 자세히 분석하고 풀이해주는 전문가입니다.
+        // 시스템 프롬프트 설정 (기본값 또는 전달받은 값 사용)
+        const defaultImageSystemPrompt = `당신은 StudyTime 앱의 학습 문제 분석 AI 어시스턴트예요. 학생들이 올린 문제를 자세히 분석하고 풀이해주는 전문가입니다.
 
 **답변 형식 (반드시 이 순서대로):**
 
@@ -302,10 +296,25 @@ router.post('/analyze-problem', authenticateByEmail, upload.single('image'), asy
 
 **답변 규칙:**
 - 반드시 "~예요", "~해요" 요체 사용
-- 각 섹션을 명확히 구분
-- 수식이나 계산 과정은 단계별로 자세히
-- 정답은 반드시 명시
-- 친근하지만 전문적인 톤 유지`
+- 친근하고 격려하는 톤 유지
+- 중요한 부분은 **볼드**로 강조
+- 이모지를 적절히 사용해서 가독성 높이기`;
+
+        const finalImageSystemPrompt = systemPrompt || defaultImageSystemPrompt;
+
+        // GPT-4 Vision API 호출
+        const response = await fetch(OPENAI_API_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${OPENAI_API_KEY}`,
+            },
+            body: JSON.stringify({
+                model: 'gpt-4o',
+                messages: [
+                    {
+                        role: 'system',
+                        content: finalImageSystemPrompt
                     },
                     {
                         role: 'user',

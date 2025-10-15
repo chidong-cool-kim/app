@@ -263,6 +263,11 @@ export default function Timer() {
   const handleSubjectPress = (subjectName) => {
     setActiveSubject(subjectName);
     
+    // 모바일에서 사이드바 닫기
+    if (screenInfo.isPhone) {
+      setSidebarVisible(false);
+    }
+    
     switch(subjectName) {
       case '홈':
         navigation.navigate('Main');
@@ -400,7 +405,8 @@ export default function Timer() {
       </View>
 
       <View style={currentStyles.container}>
-        {sidebarVisible && (
+        {/* 데스크톱 사이드바 */}
+        {!screenInfo.isPhone && sidebarVisible && (
           <View style={currentStyles.sidebar}>
             <View style={currentStyles.searchContainer}>
               <Text style={styles.searchIconText}>🔍</Text>
@@ -433,6 +439,49 @@ export default function Timer() {
           </View>
         )}
 
+        {/* 모바일 슬라이드 사이드바 */}
+        {screenInfo.isPhone && sidebarVisible && (
+          <View style={styles.mobileSidebar}>
+            <View style={styles.mobileSidebarContent}>
+              <View style={currentStyles.searchContainer}>
+                <Text style={styles.searchIconText}>🔍</Text>
+                <TextInput
+                  style={currentStyles.searchInput}
+                  placeholder="검색"
+                  placeholderTextColor={isSuneungMode ? '#666' : '#999'}
+                  value={searchText}
+                  onChangeText={setSearchText}
+                />
+              </View>
+              <View style={styles.subjectList}>
+                {subjects.map((name) => (
+                  <TouchableOpacity
+                    key={name}
+                    style={[currentStyles.subjectItem, activeSubject === name && currentStyles.activeSubjectItem]}
+                    onPress={() => handleSubjectPress(name)}
+                  >
+                    <Text style={[currentStyles.subjectText, activeSubject === name && currentStyles.activeSubjectText]}>
+                      {name}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <View style={styles.bottomDots}>
+                <View style={[currentStyles.dot, currentStyles.activeDot]} />
+                <View style={currentStyles.dot} />
+                <View style={currentStyles.dot} />
+              </View>
+            </View>
+            
+            <TouchableOpacity 
+              style={styles.mobileSidebarOverlay} 
+              onPress={() => setSidebarVisible(false)}
+            />
+          </View>
+        )}
+
+        {/* 모바일에서 사이드바가 열려있으면 메인 콘텐츠 숨김 */}
+        {!(screenInfo.isPhone && sidebarVisible) && (
         <ScrollView 
           style={[currentStyles.mainContent, !sidebarVisible && styles.mainContentExpanded]} 
           contentContainerStyle={[styles.scrollContentContainer, screenInfo.isPhone && styles.scrollContentContainerMobile]} 
@@ -581,6 +630,7 @@ export default function Timer() {
             </View>
           </View>
         </ScrollView>
+        )}
       </View>
 
       <Modal visible={showSettings} transparent={true} animationType="fade" onRequestClose={cancelSettings}>
@@ -661,6 +711,31 @@ const styles = StyleSheet.create({
   profileText: { fontSize: 16, color: '#fff', fontWeight: '600' },
   container: { flex: 1, flexDirection: 'row' },
   sidebar: { width: 280, paddingHorizontal: 18, paddingVertical: 20, borderRightWidth: 1 },
+  mobileSidebar: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    zIndex: 1000,
+    flexDirection: 'row',
+  },
+  mobileSidebarContent: {
+    width: '80%',
+    backgroundColor: 'white',
+    paddingHorizontal: 18,
+    paddingVertical: 20,
+    paddingTop: 40,
+    shadowColor: '#000',
+    shadowOffset: { width: 2, height: 0 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 10,
+  },
+  mobileSidebarOverlay: {
+    flex: 1,
+  },
   searchContainer: { flexDirection: 'row', alignItems: 'center', borderRadius: 22, marginBottom: 20, paddingHorizontal: 14, height: 40 },
   searchIconText: { fontSize: 13, color: '#999', marginRight: 6 },
   searchInput: { flex: 1, fontSize: 14 },
@@ -989,5 +1064,48 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.04,
     shadowRadius: 8,
     elevation: 1,
+  },
+  
+  // 태블릿 전용 스타일 (기존 스타일의 85% 크기와 간격)
+  tabletContainer: {
+    flex: 1,
+    paddingHorizontal: 20,
+  },
+  tabletHeader: {
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+  },
+  tabletTimerCard: {
+    padding: 34,
+    margin: 17,
+  },
+  tabletTimerDisplay: {
+    fontSize: 54,
+    marginBottom: 17,
+  },
+  tabletButton: {
+    paddingVertical: 14,
+    paddingHorizontal: 34,
+    borderRadius: 11,
+  },
+  tabletButtonText: {
+    fontSize: 15,
+  },
+  statsContainerTablet: {
+    flexDirection: 'row',
+    gap: 13,
+    marginTop: 17,
+  },
+  statCardTablet: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 17,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    elevation: 2,
   },
 });

@@ -138,11 +138,14 @@ const messageRoutes = require('./router/route_messages');
 const iapRoutes = require('./router/route_iap');
 const noteRoutes = require('./router/route_notes');
 const plannerRoutes = require('./router/route_planner');
+const googleOAuthRoutes = require('./router/route_google_oauth');
 
 app.use('/api/signup', signupRoutes);
 app.use('/api/auth', signupRoutes); // route_1.js를 /api/auth로도 등록 (초대 API용)
+app.use('/api', signupRoutes); // route_1.js를 /api로도 등록 (user/details API용)
 app.use('/api/auth', authRoutes);
 app.use('/api', authRoutes); // 사용자 데이터 조회용 (/api/user-data 경로 포함)
+app.use('/api/auth', googleOAuthRoutes); // Google OAuth 라우트
 app.use('/api/community', communityRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/admin', adminRoutes);
@@ -303,6 +306,10 @@ app.get('/api/online-users', (req, res) => {
         count: onlineUserIds.length
     });
 });
+
+// Temporary logging to verify environment variables
+console.log('GMAIL_USER:', process.env.GMAIL_USER);
+console.log('GMAIL_APP_PASSWORD:', process.env.GMAIL_APP_PASSWORD);
 
 server.listen(PORT, '0.0.0.0', () => {
     console.log(`Server is running on port ${PORT}`);

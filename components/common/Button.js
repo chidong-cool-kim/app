@@ -1,6 +1,7 @@
 import React from 'react';
 import { TouchableOpacity, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { colors, typography, spacing, components } from '../../styles/designSystem';
+import { responsive } from '../../utils/responsive';
 
 export default function Button({ 
   title, 
@@ -18,25 +19,25 @@ export default function Button({
       alignItems: 'center',
       justifyContent: 'center',
       flexDirection: 'row',
-      borderRadius: components.button.primary.borderRadius
+      borderRadius: responsive.size(components.button.primary.borderRadius)
     };
 
-    // Size variations
+    // Size variations with responsive values
     const sizeStyles = {
       small: {
-        paddingHorizontal: spacing.sm,
-        paddingVertical: spacing.xs,
-        minHeight: 32
+        paddingHorizontal: responsive.spacing(spacing.sm),
+        paddingVertical: responsive.spacing(spacing.xs),
+        minHeight: responsive.size(32)
       },
       medium: {
-        paddingHorizontal: spacing.lg,
-        paddingVertical: spacing.md,
-        minHeight: 44
+        paddingHorizontal: responsive.spacing(spacing.lg),
+        paddingVertical: responsive.spacing(spacing.md),
+        minHeight: responsive.size(44)
       },
       large: {
-        paddingHorizontal: spacing.xl,
-        paddingVertical: spacing.lg,
-        minHeight: 52
+        paddingHorizontal: responsive.spacing(spacing.xl),
+        paddingVertical: responsive.spacing(spacing.lg),
+        minHeight: responsive.size(52)
       }
     };
 
@@ -69,11 +70,11 @@ export default function Button({
       textAlign: 'center'
     };
 
-    // Size text styles
+    // Size text styles with responsive font sizes
     const sizeTextStyles = {
-      small: { fontSize: typography.fontSize.sm },
-      medium: { fontSize: typography.fontSize.base },
-      large: { fontSize: typography.fontSize.lg }
+      small: { fontSize: responsive.fontSize(typography.fontSize.sm) },
+      medium: { fontSize: responsive.fontSize(typography.fontSize.base) },
+      large: { fontSize: responsive.fontSize(typography.fontSize.lg) }
     };
 
     // Variant text styles
@@ -110,7 +111,7 @@ export default function Button({
       ) : (
         <>
           {icon && <>{icon}</>}
-          <Text style={[getTextStyle(), textStyle, icon && { marginLeft: spacing.xs }]}>
+          <Text style={[getTextStyle(), textStyle, icon && { marginLeft: responsive.spacing(spacing.xs) }]}>
             {title}
           </Text>
         </>

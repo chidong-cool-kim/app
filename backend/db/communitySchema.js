@@ -22,6 +22,22 @@ const commentSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
     }],
+    hasSnowEffect: {
+        type: Boolean,
+        default: false,
+    },
+    hasAutumnEffect: {
+        type: Boolean,
+        default: false,
+    },
+    hasRainEffect: {
+        type: Boolean,
+        default: false,
+    },
+    hasShootingStarEffect: {
+        type: Boolean,
+        default: false,
+    },
     createdAt: {
         type: Date,
         default: Date.now,
@@ -60,6 +76,14 @@ const postSchema = new mongoose.Schema({
         default: false,
     },
     hasAutumnEffect: {
+        type: Boolean,
+        default: false,
+    },
+    hasRainEffect: {
+        type: Boolean,
+        default: false,
+    },
+    hasShootingStarEffect: {
         type: Boolean,
         default: false,
     },

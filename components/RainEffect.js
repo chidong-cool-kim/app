@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { View, StyleSheet, Animated, Dimensions } from 'react-native';
+import Svg, { Path, Defs, LinearGradient as SvgLinearGradient, Stop } from 'react-native-svg';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -83,6 +84,24 @@ const RainEffect = ({ active = false, intensity = 25, duration = 3000 }) => {
 
   return (
     <View style={styles.container} pointerEvents="none">
+      {/* 비오는 날 그라데이션 배경 */}
+      <Svg width="100%" height="100%" style={styles.gradientBackground}>
+        <Defs>
+          <SvgLinearGradient id="rainGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+            <Stop offset="0%" stopColor="#708090" stopOpacity="0.35" />
+            <Stop offset="25%" stopColor="#778899" stopOpacity="0.3" />
+            <Stop offset="50%" stopColor="#B0C4DE" stopOpacity="0.25" />
+            <Stop offset="75%" stopColor="#87CEEB" stopOpacity="0.3" />
+            <Stop offset="100%" stopColor="#4682B4" stopOpacity="0.35" />
+          </SvgLinearGradient>
+        </Defs>
+        <Path
+          d={`M0,0 L${screenWidth},0 L${screenWidth},${screenHeight} L0,${screenHeight} Z`}
+          fill="url(#rainGradient)"
+        />
+      </Svg>
+      
+      {/* 빗줄기들 */}
       {Array.from({ length: intensity }).map((_, index) => (
         <RainDrop 
           key={`rain-${index}`} 
@@ -100,12 +119,21 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    zIndex: 1000,
+    zIndex: 1,
     overflow: 'hidden',
+  },
+  gradientBackground: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 1,
   },
   rainDrop: {
     position: 'absolute',
     borderRadius: 1,
+    zIndex: 2,
   },
 });
 

@@ -80,6 +80,11 @@ export default function Planner() {
   const handleSubjectPress = (subjectName) => {
     setActiveSubject(subjectName);
     
+    // 모바일에서 사이드바 닫기
+    if (screenInfo.isPhone) {
+      setSidebarVisible(false);
+    }
+    
     switch (subjectName) {
       case '홈':
         navigation.navigate('Main');
@@ -721,6 +726,11 @@ export default function Planner() {
                 <View style={styles.dot} />
               </View>
             </View>
+            
+            <TouchableOpacity 
+              style={styles.mobileSidebarOverlay} 
+              onPress={() => setSidebarVisible(false)}
+            />
           </View>
         )}
 
@@ -1265,13 +1275,24 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'white',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     zIndex: 1000,
+    flexDirection: 'row',
   },
   mobileSidebarContent: {
-    flex: 1,
+    width: '80%',
+    backgroundColor: 'white',
     paddingHorizontal: 16,
     paddingVertical: 20,
+    paddingTop: 40,
+    shadowColor: '#000',
+    shadowOffset: { width: 2, height: 0 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 10,
+  },
+  mobileSidebarOverlay: {
+    flex: 1,
   },
   searchContainer: {
     flexDirection: 'row',

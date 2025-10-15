@@ -6,13 +6,18 @@ import {
   View,
   Easing,
   Text,
+  Dimensions,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { getScreenInfo } from './utils/responsive';
 import mainLogo from './assets/mainLogo.png';
 import light from './assets/light.png';
 
+const { width, height } = Dimensions.get('window');
+
 export default function Wait() {
   const navigation = useNavigation();
+  const screenInfo = getScreenInfo();
 
   const translateY = useRef(new Animated.Value(-300)).current;
   const bounce = useRef(new Animated.Value(0)).current;
@@ -25,11 +30,17 @@ export default function Wait() {
   const letterOpacities = letters.map(() => useRef(new Animated.Value(0)).current);
   const textBounce = useRef(new Animated.Value(0)).current;
 
+  // 반응형 크기 계산
+  const containerSize = screenInfo.isPhone ? Math.min(width, height) * 0.85 : 400;
+  const imageSize = containerSize;
+  const lightSize = containerSize * 0.3;
+  const fontSize = screenInfo.isPhone ? 40 : 48;
+
   useEffect(() => {
     Animated.sequence([
       Animated.timing(translateY, {
         toValue: 0,
-        duration: 1500, // 책 내려오는 속도 느리게
+        duration: 1500,
         easing: Easing.out(Easing.quad),
         useNativeDriver: true,
       }),
@@ -107,10 +118,9 @@ export default function Wait() {
         }),
       ]),
     ]).start(() => {
-      // 마지막 bounce 후 약간의 여유를 두고 화면 전환
       setTimeout(() => {
         navigation.replace('Login');
-      }, 800); // 0.8초 대기 후 이동
+      }, 800);
     });
   }, []);
 
@@ -121,12 +131,14 @@ export default function Wait() {
 
   return (
     <Animated.View style={[styles.safeArea, { backgroundColor }]}>
-      <View style={styles.study}>
+      <View style={[styles.study, { width: containerSize, height: containerSize }]}>
         <Animated.Image
           source={mainLogo}
           style={[
             styles.image,
             {
+              width: imageSize,
+              height: imageSize,
               opacity: bookOpacity,
               transform: [{ translateY }, { translateY: bounce }],
             },
@@ -137,6 +149,10 @@ export default function Wait() {
           style={[
             styles.light,
             {
+              width: lightSize,
+              height: lightSize,
+              top: screenInfo.isPhone ? -20 : -40,
+              right: screenInfo.isPhone ? -20 : -40,
               opacity: Animated.multiply(lightOpacity, lightFadeOut),
             },
           ]}
@@ -154,7 +170,11 @@ export default function Wait() {
               key={index}
               style={[
                 styles.letter,
-                { opacity: letterOpacities[index] },
+                { 
+                  opacity: letterOpacities[index],
+                  fontSize: fontSize,
+                  marginHorizontal: screenInfo.isPhone ? 2 : 4,
+                },
               ]}
             >
               {char}
@@ -173,22 +193,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   study: {
-    width: 400,
-    height: 400,
     alignItems: 'center',
     justifyContent: 'center',
   },
   image: {
-    width: 400,
-    height: 400,
     position: 'absolute',
   },
   light: {
-    width: 120,
-    height: 120,
     position: 'absolute',
-    top: -40,
-    right: -40,
   },
   letterRow: {
     flexDirection: 'row',
@@ -196,10 +208,8 @@ const styles = StyleSheet.create({
     top: '45%',
   },
   letter: {
-    fontSize: 48,
     fontWeight: '700',
     fontStyle: 'italic',
     color: '#333',
-    marginHorizontal: 4,
   },
 });

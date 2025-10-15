@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { View, StyleSheet, Animated, Dimensions, Easing } from 'react-native';
-import Svg, { Path } from 'react-native-svg';
+import Svg, { Path, Defs, LinearGradient as SvgLinearGradient, Stop } from 'react-native-svg';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -164,6 +164,24 @@ const AutumnLeavesEffect = ({ active = false, intensity = 20, duration = 10000 }
 
   return (
     <View style={styles.container} pointerEvents="none">
+      {/* 가을 그라데이션 배경 */}
+      <Svg width="100%" height="100%" style={styles.gradientBackground}>
+        <Defs>
+          <SvgLinearGradient id="autumnGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+            <Stop offset="0%" stopColor="#FF6B35" stopOpacity="0.3" />
+            <Stop offset="25%" stopColor="#F7931E" stopOpacity="0.25" />
+            <Stop offset="50%" stopColor="#FFD23F" stopOpacity="0.2" />
+            <Stop offset="75%" stopColor="#D2691E" stopOpacity="0.25" />
+            <Stop offset="100%" stopColor="#8B4513" stopOpacity="0.3" />
+          </SvgLinearGradient>
+        </Defs>
+        <Path
+          d={`M0,0 L${screenWidth},0 L${screenWidth},${screenHeight} L0,${screenHeight} Z`}
+          fill="url(#autumnGradient)"
+        />
+      </Svg>
+      
+      {/* 낙엽들 */}
       {Array.from({ length: intensity }).map((_, index) => (
         <AutumnLeaf 
           key={`leaf-${index}`} 
@@ -181,11 +199,20 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    zIndex: 1000,
+    zIndex: 1,
     overflow: 'hidden',
+  },
+  gradientBackground: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 1,
   },
   leafContainer: {
     position: 'absolute',
+    zIndex: 2,
   },
 });
 
