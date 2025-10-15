@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -21,6 +21,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import OrientationGuard from './components/OrientationGuard';
 import { getScreenInfo, responsive, createResponsiveStyles } from './utils/responsive';
 import userDataService from './userDataService';
+import { useResponsive } from './hooks/useResponsive';
+import OrientationLock from './components/OrientationLock';
 import * as Notifications from 'expo-notifications';
 import { Audio } from 'expo-av';
 
@@ -35,6 +37,7 @@ Notifications.setNotificationHandler({
 
 export default function Planner() {
   const navigation = useNavigation();
+  const responsiveUtil = useResponsive();
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [tasks, setTasks] = useState([]);
   const [memo, setMemo] = useState('');
@@ -73,6 +76,7 @@ export default function Planner() {
     '스터디그룹 찾기',
     '커뮤니티',
     '스토어',
+    '모의고사'
   ];
 
   // 플래너는 푸시 알림만 사용 (알람음 없음)
@@ -106,6 +110,10 @@ export default function Planner() {
         break;
       case '스토어':
         navigation.navigate('Store');
+        break;
+      case '모의고사':
+        navigation.navigate('ExamAnswers');
+        break;
       default:
         break;
     }
@@ -620,8 +628,14 @@ export default function Planner() {
     }
   );
 
+  // 반응형 스타일 적용
+  const styles = useMemo(
+    () => responsiveUtil.applyAll(baseStyles), 
+    [responsiveUtil]
+  );
+
   return (
-    <OrientationGuard screenName="플래너" allowPortrait={true}>
+    <OrientationLock isNoteScreen={false}>
       <SafeAreaView style={[styles.safeArea, responsiveStyles.safeArea]}>
       {/* 헤더 */}
       <View style={styles.header}>
@@ -1219,11 +1233,11 @@ export default function Planner() {
       </Modal>
 
       </SafeAreaView>
-    </OrientationGuard>
+    </OrientationLock>
   );
 }
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: '#F8F9FA',

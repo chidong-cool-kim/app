@@ -16,6 +16,7 @@ import { useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import userDataService from './userDataService';
 import MobileSafeArea from './components/MobileSafeArea';
+import OrientationLock from './components/OrientationLock';
 import OrientationGuard from './components/OrientationGuard';
 import { getScreenInfo, responsive } from './utils/responsive';
 import { useGmailAuth } from './useGmailAuth';
@@ -364,7 +365,7 @@ export default function Login() {
     const styles = getStyles();
 
     return (
-        <OrientationGuard screenName="로그인" allowPortrait={true}>
+        <OrientationLock isNoteScreen={false}>
             <MobileSafeArea style={styles.safeArea} backgroundColor="#ffffff">
             {/* 상단 바 */}
             <View style={[
@@ -584,7 +585,7 @@ export default function Login() {
                 ]}></View>
             </View>
             </MobileSafeArea>
-        </OrientationGuard>
+        </OrientationLock>
     );
 }
 

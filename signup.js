@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -12,26 +12,29 @@ import {
   Dimensions,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import OrientationGuard from './components/OrientationGuard';
+import MobileSafeArea from './components/MobileSafeArea';
+import { useResponsive } from './hooks/useResponsive';
+import OrientationLock from './components/OrientationLock';
 import { getScreenInfo, responsive } from './utils/responsive';
 import emailService from './emailService';
 import database from './database';
 
-export default function SignUp() {
-    const navigation = useNavigation();
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
-    const [confirmPassword, setConfirmPassword] = useState('');
-    const [name, setName] = useState('');
-    const [verificationCode, setVerificationCode] = useState('');
-    const [isEmailVerified, setIsEmailVerified] = useState(false);
-    const [isCodeSent, setIsCodeSent] = useState(false);
-    const [isLoading, setIsLoading] = useState(false);
-    const [timer, setTimer] = useState(0);
-    const [screenInfo, setScreenInfo] = useState(getScreenInfo());
+export default function Signup() {
+  const navigation = useNavigation();
+  const responsiveUtil = useResponsive();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [name, setName] = useState('');
+  const [verificationCode, setVerificationCode] = useState('');
+  const [isEmailVerified, setIsEmailVerified] = useState(false);
+  const [isCodeSent, setIsCodeSent] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [timer, setTimer] = useState(0);
+  const [screenInfo, setScreenInfo] = useState(getScreenInfo());
 
-    // 화면 크기 변경 감지
-    useEffect(() => {
+  // 화면 크기 변경 감지
+  useEffect(() => {
         const subscription = Dimensions.addEventListener('change', () => {
             setScreenInfo(getScreenInfo());
         });
@@ -211,11 +214,11 @@ export default function SignUp() {
         return `${mins}:${secs.toString().padStart(2, '0')}`;
     };
 
-    // 반응형 스타일 선택
+    // 반응형 스타일 선택 (기존 디자인 유지)
     const styles = screenInfo.isPhone ? phoneStyles : baseStyles;
 
     return (
-        <OrientationGuard screenName="회원가입" allowPortrait={true}>
+        <OrientationLock isNoteScreen={false}>
             <SafeAreaView style={styles.safeArea}>
             {/* 상단 바 */}
             <View style={[
@@ -375,7 +378,7 @@ export default function SignUp() {
                 ]}></View>
             </View>
             </SafeAreaView>
-        </OrientationGuard>
+        </OrientationLock>
     );
 }
 

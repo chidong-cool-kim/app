@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -19,9 +19,12 @@ import { getScreenInfo, responsive, createResponsiveStyles } from './utils/respo
 import MobileSafeArea from './components/MobileSafeArea';
 import MobileModal from './components/MobileModal';
 import effectSettingsService from './services/EffectSettingsService';
+import { useResponsive } from './hooks/useResponsive';
+import OrientationLock from './components/OrientationLock';
 
 export default function Settings() {
   const navigation = useNavigation();
+  const responsiveUtil = useResponsive();
   const [userInfo, setUserInfo] = useState(null);
   const [profileImage, setProfileImage] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -274,19 +277,28 @@ export default function Settings() {
     );
   };
 
+  // 반응형 스타일 적용
+  const styles = useMemo(
+    () => responsiveUtil.applyAll(baseStyles), 
+    [responsiveUtil]
+  );
+
   if (loading) {
     return (
-      <MobileSafeArea style={styles.container} backgroundColor="#f5f5f5">
+      <OrientationLock isNoteScreen={false}>
+        <MobileSafeArea style={styles.container} backgroundColor="#f5f5f5">
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#4A90E2" />
           <Text style={styles.settingText}>로딩 중...</Text>
         </View>
-      </MobileSafeArea>
+        </MobileSafeArea>
+      </OrientationLock>
     );
   }
 
   return (
-    <MobileSafeArea style={styles.container} backgroundColor="#f5f5f5">
+    <OrientationLock isNoteScreen={false}>
+      <MobileSafeArea style={styles.container} backgroundColor="#f5f5f5">
       {/* 헤더 */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
@@ -534,11 +546,12 @@ export default function Settings() {
           </View>
         </View>
       </MobileModal>
-    </MobileSafeArea>
+      </MobileSafeArea>
+    </OrientationLock>
   );
 }
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',

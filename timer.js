@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -23,6 +23,8 @@ import OrientationGuard from './components/OrientationGuard';
 import MobileSafeArea from './components/MobileSafeArea';
 import { getScreenInfo, responsive, createResponsiveStyles } from './utils/responsive';
 import userDataService from './userDataService';
+import { useResponsive } from './hooks/useResponsive';
+import OrientationLock from './components/OrientationLock';
 import Svg, { Circle } from 'react-native-svg';
 
 const suneungSchedule = [
@@ -44,6 +46,7 @@ const subjects = [
 
 export default function Timer() {
   const navigation = useNavigation();
+  const responsiveUtil = useResponsive();
   
   const {
     isRunning,
@@ -364,44 +367,51 @@ export default function Timer() {
     }
   };
 
+  // 반응형 스타일 적용
+  const styles = useMemo(
+    () => responsiveUtil.applyAll(baseStyles), 
+    [responsiveUtil]
+  );
+
   const currentStyles = getContainerStyles();
 
   return (
-    <SafeAreaView style={currentStyles.safeArea}>
-      <View style={currentStyles.header}>
-        <View style={styles.headerLeft}>
-          <TouchableOpacity style={styles.hamburgerButton} onPress={() => setSidebarVisible(!sidebarVisible)}>
-            <View style={[styles.hamburgerLine, isSuneungMode && { backgroundColor: '#999' }]} />
-            <View style={[styles.hamburgerLine, isSuneungMode && { backgroundColor: '#999' }]} />
-            <View style={[styles.hamburgerLine, isSuneungMode && { backgroundColor: '#999' }]} />
+    <OrientationLock isNoteScreen={false}>
+      <SafeAreaView style={currentStyles.safeArea}>
+        <View style={currentStyles.header}>
+          <View style={styles.headerLeft}>
+            <TouchableOpacity style={styles.hamburgerButton} onPress={() => setSidebarVisible(!sidebarVisible)}>
+              <View style={[styles.hamburgerLine, isSuneungMode && { backgroundColor: '#999' }]} />
+              <View style={[styles.hamburgerLine, isSuneungMode && { backgroundColor: '#999' }]} />
+              <View style={[styles.hamburgerLine, isSuneungMode && { backgroundColor: '#999' }]} />
+            </TouchableOpacity>
+            <Text style={currentStyles.title}>StudyTime</Text>
+            <Text style={currentStyles.homeText}>타이머</Text>
+          </View>
+          <TouchableOpacity 
+            style={styles.profileIcon}
+            onPress={() => navigation.navigate('Settings')}
+          >
+            {currentUser?.profileImage ? (
+              <Image 
+                source={{ uri: currentUser.profileImage }} 
+                style={styles.profileImage}
+                onError={(error) => {
+                  console.log('타이머 프로필 이미지 로드 실패:', error.nativeEvent.error);
+                  console.log('이미지 URL:', currentUser.profileImage);
+                }}
+                onLoad={() => {
+                  console.log('타이머 프로필 이미지 로드 성공:', currentUser.profileImage);
+                }}
+              />
+            ) : (
+              <View style={styles.defaultProfileIcon}>
+                <Text style={styles.profileText}>
+                  {currentUser?.name?.charAt(0) || currentUser?.email?.charAt(0) || '?'}
+                </Text>
+              </View>
+            )}
           </TouchableOpacity>
-          <Text style={currentStyles.title}>StudyTime</Text>
-          <Text style={currentStyles.homeText}>타이머</Text>
-        </View>
-        <TouchableOpacity 
-          style={styles.profileIcon}
-          onPress={() => navigation.navigate('Settings')}
-        >
-          {currentUser?.profileImage ? (
-            <Image 
-              source={{ uri: currentUser.profileImage }} 
-              style={styles.profileImage}
-              onError={(error) => {
-                console.log('타이머 프로필 이미지 로드 실패:', error.nativeEvent.error);
-                console.log('이미지 URL:', currentUser.profileImage);
-              }}
-              onLoad={() => {
-                console.log('타이머 프로필 이미지 로드 성공:', currentUser.profileImage);
-              }}
-            />
-          ) : (
-            <View style={styles.defaultProfileIcon}>
-              <Text style={styles.profileText}>
-                {currentUser?.name?.charAt(0) || currentUser?.email?.charAt(0) || '?'}
-              </Text>
-            </View>
-          )}
-        </TouchableOpacity>
       </View>
 
       <View style={currentStyles.container}>
@@ -693,11 +703,12 @@ export default function Timer() {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+      </SafeAreaView>
+    </OrientationLock>
   );
 }
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   safeArea: { flex: 1 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 24, paddingVertical: 16, backgroundColor: 'white', borderBottomWidth: 1, borderBottomColor: '#E5E5E5' },
   title: { fontSize: 26, fontWeight: '700', color: '#000' },

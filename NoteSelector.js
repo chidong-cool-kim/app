@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   View,
   Text,
@@ -8,11 +8,14 @@ import {
   SafeAreaView,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import { useResponsive } from './hooks/useResponsive';
+import OrientationLock from './components/OrientationLock';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
-const NoteSelector = () => {
+function NoteSelector() {
   const navigation = useNavigation();
+  const responsiveUtil = useResponsive();
   const route = useRoute();
   
   // Main.js에서 전달받은 파라미터
@@ -40,8 +43,15 @@ const NoteSelector = () => {
     navigation.goBack();
   };
 
+  // 반응형 스타일 적용
+  const styles = useMemo(
+    () => responsiveUtil.applyAll(baseStyles), 
+    [responsiveUtil]
+  );
+
   return (
-    <SafeAreaView style={styles.container}>
+    <OrientationLock isNoteScreen={true}>
+      <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={handleBack} style={styles.backButton}>
@@ -106,11 +116,12 @@ const NoteSelector = () => {
           </Text>
         </View>
       </View>
-    </SafeAreaView>
+      </SafeAreaView>
+    </OrientationLock>
   );
-};
+}
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f9fafb',

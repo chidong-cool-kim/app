@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   StyleSheet,
   Text,
@@ -18,6 +18,8 @@ import { useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import userDataService from './userDataService';
 import MobileSafeArea from './components/MobileSafeArea';
+import { useResponsive } from './hooks/useResponsive';
+import OrientationLock from './components/OrientationLock';
 import * as ImagePicker from 'expo-image-picker';
 import SnowEffect from './components/SnowEffect';
 import AutumnLeavesEffect from './components/AutumnLeavesEffect';
@@ -39,6 +41,7 @@ const getSubjects = (isAdmin = false) => {
     '스터디그룹 찾기',
     '커뮤니티',
     '스토어',
+    '모의고사'
   ];
   
   if (isAdmin) {
@@ -51,6 +54,7 @@ const getSubjects = (isAdmin = false) => {
 
 export default function Community() {
   const navigation = useNavigation();
+  const responsiveUtil = useResponsive();
   const [searchText, setSearchText] = useState('');
   const [posts, setPosts] = useState([]);
   const [newPostTitle, setNewPostTitle] = useState('');
@@ -190,7 +194,8 @@ export default function Community() {
       'AI': 'AI',
       '스터디그룹 찾기': 'StudyGroup',
       '커뮤니티': 'Community',
-      '스토어': 'Store'
+      '스토어': 'Store',
+      '모의고사': 'ExamAnswers'
     };
     
     if (subjectName === '👥 사용자 관리') {
@@ -648,8 +653,15 @@ export default function Community() {
     }
   };
 
+  // 반응형 스타일 적용
+  const styles = useMemo(
+    () => responsiveUtil.applyAll(baseStyles), 
+    [responsiveUtil]
+  );
+
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <OrientationLock isNoteScreen={false}>
+      <SafeAreaView style={styles.safeArea}>
       {/* 헤더 - Main.js와 완전 동일 */}
       <View style={[styles.header, responsiveStyles.header]}>
         <View style={styles.headerLeft}>
@@ -1222,11 +1234,12 @@ export default function Community() {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+      </SafeAreaView>
+    </OrientationLock>
   );
 }
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#F8F9FA' },
   // 헤더 스타일 - Main.js와 완전 동일
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 24, paddingVertical: 16, backgroundColor: 'white', borderBottomWidth: 1, borderBottomColor: '#E5E5E5' },

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -28,6 +28,8 @@ import Button from './components/common/Button';
 import StudyLevelWidget from './components/StudyLevelWidget';
 import LevelUpModal from './components/LevelUpModal';
 import studyTimeService from './services/StudyTimeService';
+import { useResponsive } from './hooks/useResponsive';
+import OrientationLock from './components/OrientationLock';
 
 const getSubjects = (isAdmin = false) => {
   const baseSubjects = [
@@ -100,6 +102,7 @@ const FolderItem = ({ folder, onNotePress, onOptionsPress }) => (
 export default function Main() {
   const navigation = useNavigation();
   const { todayStudyTime, loadTodayStudyTime } = useTimer();
+  const responsiveUtil = useResponsive();
   const [searchText, setSearchText] = useState('');
   const [currentUser, setCurrentUser] = useState(null);
   const [selectedFolder, setSelectedFolder] = useState(null);

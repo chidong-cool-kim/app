@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -20,9 +20,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 //   Subscription,
 // } from 'react-native-iap';
 import userDataService from './userDataService';
-import { getScreenInfo, responsive } from './utils/responsive';
-import MiniTimer from './miniTimer';
-
+import { useResponsive } from './hooks/useResponsive';
+import OrientationLock from './components/OrientationLock';
 // Google Play Console에 등록한 상품 ID
 const PRODUCT_IDS = Platform.select({
   android: ['basic_monthly', 'premium_monthly'],
@@ -65,6 +64,7 @@ const PLANS = [
 
 export default function Store() {
   const navigation = useNavigation();
+  const responsiveUtil = useResponsive();
   const [loading, setLoading] = useState(true);
   const [userData, setUserData] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
@@ -288,273 +288,211 @@ export default function Store() {
     return '가격 정보 없음';
   };
 
+  // 반응형 스타일 적용
+  const styles = useMemo(
+    () => responsiveUtil.applyAll(baseStyles), 
+    [responsiveUtil]
+  );
+
   if (loading) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#4A90E2" />
-          <Text style={styles.loadingText}>로딩 중...</Text>
-        </View>
-      </SafeAreaView>
+      <OrientationLock isNoteScreen={false}>
+        <SafeAreaView style={styles.container}>
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#4A90E2" />
+            <Text style={styles.loadingText}>로딩 중...</Text>
+          </View>
+        </SafeAreaView>
+      </OrientationLock>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}> 
-      <MiniTimer />
-      {/* 헤더 */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={styles.backButton}>← 뒤로</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>스토어</Text>
-        <TouchableOpacity onPress={restorePurchases}>
-          <Text style={styles.restoreButton}>복원</Text>
-        </TouchableOpacity>
-      </View>
+    <OrientationLock isNoteScreen={false}>
+      <SafeAreaView style={styles.container}> 
+        <MiniTimer />
+        {/* 헤더 */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()}>
+            <Text style={styles.backButton}>← 뒤로</Text>
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>스토어</Text>
+          <TouchableOpacity onPress={restorePurchases}>
+            <Text style={styles.restoreButton}>복원</Text>
+          </TouchableOpacity>
+        </View>
 
-      <ScrollView 
-        style={styles.scrollView} 
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
-      >
-        {/* 현재 구독 상태 */}
-        {currentSubscription && (
-          <View style={styles.currentSubscription}>
-            <Text style={styles.currentSubscriptionTitle}>현재 구독 중</Text>
-            <View style={styles.subscriptionCard}>
-              <Text style={styles.subscriptionName}>{currentSubscription.planName}</Text>
-              <Text style={styles.subscriptionPrice}>월 {currentSubscription.price}원</Text>
-              <Text style={styles.subscriptionExpiry}>
-                만료일: {new Date(currentSubscription.endDate).toLocaleDateString('ko-KR')}
-              </Text>
-              <View style={styles.subscriptionFeatures}>
-                <Text style={styles.subscriptionFeature}>
-                  ✅ {currentSubscription.aiModel} 모델 사용
+        <ScrollView 
+          style={styles.scrollView} 
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+        >
+          {/* 현재 구독 상태 */}
+          {currentSubscription && (
+            <View style={styles.currentSubscription}>
+              <Text style={styles.currentSubscriptionTitle}>현재 구독 중</Text>
+              <View style={styles.subscriptionCard}>
+                <Text style={styles.subscriptionName}>{currentSubscription.planName}</Text>
+                <Text style={styles.subscriptionPrice}>월 {currentSubscription.price}원</Text>
+                <Text style={styles.subscriptionExpiry}>
+                  만료일: {new Date(currentSubscription.endDate).toLocaleDateString('ko-KR')}
                 </Text>
-                <Text style={styles.subscriptionFeature}>
-                  ✅ AI 질문 {currentSubscription.aiQuestions}개/월
-                </Text>
-                <Text style={styles.subscriptionFeature}>
-                  ✅ 프로필 커스터마이징 활성화
-                </Text>
+                <View style={styles.subscriptionFeatures}>
+                  <Text style={styles.subscriptionFeature}>
+                    ✅ {currentSubscription.aiModel} 모델 사용
+                  </Text>
+                  <Text style={styles.subscriptionFeature}>
+                    ✅ AI 질문 {currentSubscription.aiQuestions}개/월
+                  </Text>
+                  <Text style={styles.subscriptionFeature}>
+                    ✅ 프로필 커스터마이징 활성화
+                  </Text>
+                </View>
               </View>
             </View>
-          </View>
-        )}
+          )}
 
-        {/* 플랜 선택 */}
-        <View style={styles.plansSection}>
-          <Text style={styles.sectionTitle}>플랜 선택</Text>
-          <Text style={styles.sectionSubtitle}>
-            프로필을 더 멋지게 꾸미고 AI 질문을 더 많이 사용해보세요!
-          </Text>
+          {/* 플랜 선택 */}
+          <View style={styles.plansSection}>
+            <Text style={styles.sectionTitle}>플랜 선택</Text>
+            <Text style={styles.sectionSubtitle}>
+              프로필을 더 멋지게 꾸미고 AI 질문을 더 많이 사용해보세요!
+            </Text>
 
-          {PLANS.map((plan) => {
-            const product = Platform.OS === 'android' 
-              ? subscriptions.find(s => s.productId === plan.productId)
-              : products.find(p => p.productId === plan.productId);
-            
-            const displayPrice = product ? formatPrice(product) : `월 ${plan.price}원`;
+            {PLANS.map((plan) => {
+              const product = Platform.OS === 'android' 
+                ? subscriptions.find(s => s.productId === plan.productId)
+                : products.find(p => p.productId === plan.productId);
+              
+              const displayPrice = product ? formatPrice(product) : `월 ${plan.price}원`;
 
-            return (
-              <TouchableOpacity
-                key={plan.id}
-                style={[
-                  styles.planCard,
-                  currentSubscription?.planId === plan.id && styles.currentPlanCard,
-                ]}
-                onPress={() => handlePlanSelect(plan)}
-                disabled={currentSubscription?.planId === plan.id}
-              >
-                <View style={styles.planHeader}>
-                  <Text style={styles.planName}>{plan.name}</Text>
-                  <View style={styles.priceContainer}>
-                    <Text style={styles.planPrice}>{displayPrice}</Text>
+              return (
+                <TouchableOpacity
+                  key={plan.id}
+                  style={[
+                    styles.planCard,
+                    currentSubscription?.planId === plan.id && styles.currentPlanCard,
+                  ]}
+                  onPress={() => handlePlanSelect(plan)}
+                  disabled={currentSubscription?.planId === plan.id}
+                >
+                  <View style={styles.planHeader}>
+                    <Text style={styles.planName}>{plan.name}</Text>
+                    <View style={styles.priceContainer}>
+                      <Text style={styles.planPrice}>{displayPrice}</Text>
+                    </View>
                   </View>
-                </View>
 
-                <View style={styles.planContent}>
-                  <View style={styles.planFeatures}>
-                    {plan.features.map((feature, index) => (
-                      <Text key={index} style={styles.planFeature}>
+                  <View style={styles.planContent}>
+                    <View style={styles.planFeatures}>
+                      {plan.features.map((feature, index) => (
+                        <Text key={index} style={styles.planFeature}>
+                          • {feature}
+                        </Text>
+                      ))}
+                    </View>
+
+                    <View style={styles.planFooter}>
+                      {currentSubscription?.planId === plan.id ? (
+                        <Text style={styles.currentPlanText}>현재 플랜</Text>
+                      ) : (
+                        <TouchableOpacity
+                          style={styles.subscribeButton}
+                          onPress={() => handlePlanSelect(plan)}
+                        >
+                          <Text style={styles.subscribeButtonText}>구독하기</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          {/* 추가 정보 */}
+          <View style={styles.infoSection}>
+            <Text style={styles.infoTitle}>💡 유의사항</Text>
+            <Text style={styles.infoText}>
+              • 구독은 매월 자동으로 갱신됩니다{'\n'}
+              • 구독 취소는 Google Play 설정에서 언제든지 가능합니다{'\n'}
+              • 사용하지 않은 AI 질문권은 다음 달로 이월되지 않습니다{'\n'}
+              • 결제는 Google Play 계정으로 청구됩니다{'\n'}
+              • 환불 정책은 Google Play 정책을 따릅니다
+            </Text>
+          </View>
+        </ScrollView>
+
+        {/* 결제 확인 모달 */}
+        <Modal
+          visible={showPaymentModal}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={() => setShowPaymentModal(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>결제 확인</Text>
+
+              {selectedPlan && (
+                <>
+                  <View style={styles.modalPlanInfo}>
+                    <Text style={styles.modalPlanName}>{selectedPlan.name} 플랜</Text>
+                    <Text style={styles.modalPlanModel}>{selectedPlan.aiModel} 모델</Text>
+                    <Text style={styles.modalPlanPrice}>월 {selectedPlan.price}원</Text>
+                    <Text style={styles.modalPlanQuestions}>
+                      AI 질문 {selectedPlan.aiQuestions}개/월
+                    </Text>
+                  </View>
+
+                  <View style={styles.modalFeatures}>
+                    <Text style={styles.modalFeaturesTitle}>포함된 기능:</Text>
+                    {selectedPlan.features.map((feature, index) => (
+                      <Text key={index} style={styles.modalFeature}>
                         • {feature}
                       </Text>
                     ))}
                   </View>
 
-                  <View style={styles.planFooter}>
-                    {currentSubscription?.planId === plan.id ? (
-                      <Text style={styles.currentPlanText}>현재 플랜</Text>
-                    ) : (
-                      <TouchableOpacity
-                        style={styles.subscribeButton}
-                        onPress={() => handlePlanSelect(plan)}
-                      >
-                        <Text style={styles.subscribeButtonText}>구독하기</Text>
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                </View>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-
-        {/* 추가 정보 */}
-        <View style={styles.infoSection}>
-          <Text style={styles.infoTitle}>💡 유의사항</Text>
-          <Text style={styles.infoText}>
-            • 구독은 매월 자동으로 갱신됩니다{'\n'}
-            • 구독 취소는 Google Play 설정에서 언제든지 가능합니다{'\n'}
-            • 사용하지 않은 AI 질문권은 다음 달로 이월되지 않습니다{'\n'}
-            • 결제는 Google Play 계정으로 청구됩니다{'\n'}
-            • 환불 정책은 Google Play 정책을 따릅니다
-          </Text>
-        </View>
-      </ScrollView>
-
-      {/* 결제 확인 모달 */}
-      <Modal
-        visible={showPaymentModal}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={() => setShowPaymentModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>결제 확인</Text>
-
-            {selectedPlan && (
-              <>
-                <View style={styles.modalPlanInfo}>
-                  <Text style={styles.modalPlanName}>{selectedPlan.name} 플랜</Text>
-                  <Text style={styles.modalPlanModel}>{selectedPlan.aiModel} 모델</Text>
-                  <Text style={styles.modalPlanPrice}>월 {selectedPlan.price}원</Text>
-                  <Text style={styles.modalPlanQuestions}>
-                    AI 질문 {selectedPlan.aiQuestions}개/월
+                  <Text style={styles.modalNote}>
+                    Google Play를 통해 결제가 진행됩니다.
                   </Text>
-                </View>
+                </>
+              )}
 
-                <View style={styles.modalFeatures}>
-                  <Text style={styles.modalFeaturesTitle}>포함된 기능:</Text>
-                  {selectedPlan.features.map((feature, index) => (
-                    <Text key={index} style={styles.modalFeature}>
-                      • {feature}
-                    </Text>
-                  ))}
-                </View>
-
-                {/* AI 스타일 선택 */}
-                <View style={styles.modalAiStyleSection}>
-                  <Text style={styles.modalAiStyleTitle}>AI 스타일 선택</Text>
-                  <TouchableOpacity 
-                    style={styles.modalAiStyleButton}
-                    onPress={() => setShowStyleModal(true)}
-                  >
-                    <Text style={styles.modalAiStyleButtonText}>
-                      {selectedAiStyle === 'friendly' ? '친절한 스타일' : 
-                       selectedAiStyle === 'strict' ? '엄격한 스타일' : 
-                       '커플 스타일'}
-                    </Text>
-                    <Text style={styles.modalAiStyleArrow}>▼</Text>
-                  </TouchableOpacity>
-                </View>
-
-                <Text style={styles.modalNote}>
-                  Google Play를 통해 결제가 진행됩니다.
-                </Text>
-              </>
-            )}
-
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={styles.modalCancelButton}
-                onPress={() => setShowPaymentModal(false)}
-                disabled={processingPayment}
-              >
-                <Text style={styles.modalCancelText}>취소</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.modalConfirmButton,
-                  processingPayment && styles.disabledButton,
-                ]}
-                onPress={handlePayment}
-                disabled={processingPayment}
-              >
-                {processingPayment ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <Text style={styles.modalConfirmText}>결제하기</Text>
-                )}
-              </TouchableOpacity>
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={styles.modalCancelButton}
+                  onPress={() => setShowPaymentModal(false)}
+                  disabled={processingPayment}
+                >
+                  <Text style={styles.modalCancelText}>취소</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.modalConfirmButton,
+                    processingPayment && styles.disabledButton,
+                  ]}
+                  onPress={handlePayment}
+                  disabled={processingPayment}
+                >
+                  {processingPayment ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text style={styles.modalConfirmText}>결제하기</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
-        </View>
-      </Modal>
+        </Modal>
 
-      {/* AI 스타일 선택 모달 */}
-      <Modal
-        visible={showStyleModal}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setShowStyleModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.styleModalContent}>
-            <Text style={styles.styleModalTitle}>AI 스타일 선택</Text>
-            <Text style={styles.styleModalSubtitle}>어떤 스타일의 AI와 대화하고 싶으신가요?</Text>
-            
-            <View style={styles.styleButtons}>
-              <TouchableOpacity 
-                style={[styles.styleOptionButton, selectedAiStyle === 'friendly' && styles.selectedStyleButton]}
-                onPress={() => {
-                  saveAiStyle('friendly');
-                  setShowStyleModal(false);
-                }}
-              >
-                <Text style={styles.styleName}>친절한 스타일</Text>
-                <Text style={styles.styleDescription}>따뜻하고 격려하는 선생님</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={[styles.styleOptionButton, selectedAiStyle === 'strict' && styles.selectedStyleButton]}
-                onPress={() => {
-                  saveAiStyle('strict');
-                  setShowStyleModal(false);
-                }}
-              >
-                <Text style={styles.styleName}>엄격한 스타일</Text>
-                <Text style={styles.styleDescription}>단호하고 직설적인 멘토</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity 
-                style={[styles.styleOptionButton, selectedAiStyle === 'couple' && styles.selectedStyleButton]}
-                onPress={() => {
-                  saveAiStyle('couple');
-                  setShowStyleModal(false);
-                }}
-              >
-                <Text style={styles.styleName}>커플 스타일</Text>
-                <Text style={styles.styleDescription}>애정 어린 학습 파트너</Text>
-              </TouchableOpacity>
-            </View>
-            
-            <TouchableOpacity 
-              style={styles.styleCloseButton}
-              onPress={() => setShowStyleModal(false)}
-            >
-              <Text style={styles.styleCloseText}>취소</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-    </SafeAreaView>
+      </SafeAreaView>
+    </OrientationLock>
   );
 }
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',

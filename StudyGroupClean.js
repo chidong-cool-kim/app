@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   StyleSheet,
   Text,
@@ -14,12 +14,16 @@ import {
   Image,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import MobileSafeArea from './components/MobileSafeArea';
+import { useResponsive } from './hooks/useResponsive';
+import OrientationLock from './components/OrientationLock';
 import userDataService from './userDataService';
 
 const API_URL = 'http://192.168.45.53:5000';
 
 export default function StudyGroup() {
   const navigation = useNavigation();
+  const responsiveUtil = useResponsive();
   const [activeTab, setActiveTab] = useState('find'); // find, my, create
   const [searchText, setSearchText] = useState('');
   const [studyGroups, setStudyGroups] = useState([]);
@@ -314,8 +318,15 @@ export default function StudyGroup() {
     </TouchableOpacity>
   );
 
+  // 반응형 스타일 적용
+  const styles = useMemo(
+    () => responsiveUtil.applyAll(baseStyles), 
+    [responsiveUtil]
+  );
+
   return (
-    <SafeAreaView style={styles.container}>
+    <OrientationLock isNoteScreen={false}>
+      <SafeAreaView style={styles.container}>
       {/* 상단 헤더 */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
@@ -486,11 +497,12 @@ export default function StudyGroup() {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+      </SafeAreaView>
+    </OrientationLock>
   );
 }
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f8f9fa',

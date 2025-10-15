@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   StyleSheet,
   Text,
@@ -19,7 +19,9 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import userDataService from './userDataService';
-import MobileSafeArea from './components/MobileSafeArea';
+import OrientationGuard from './components/OrientationGuard';
+import { useResponsive } from './hooks/useResponsive';
+import OrientationLock from './components/OrientationLock';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Markdown from 'react-native-markdown-display';
 import BanModal from './BanModal';
@@ -30,6 +32,7 @@ const BACKEND_URL = 'http://192.168.45.53:5000';
 
 export default function AI() {
   const navigation = useNavigation();
+  const responsiveUtil = useResponsive();
   const [messages, setMessages] = useState([
     {
       id: 1,
@@ -860,6 +863,7 @@ export default function AI() {
   );
 
   return (
+    <OrientationLock isNoteScreen={false}>
       <SafeAreaView style={[styles.safeArea, responsiveStyles.safeArea]}>
       <View style={styles.header}>
         <View style={styles.headerLeft}>
@@ -872,7 +876,7 @@ export default function AI() {
           <Text style={styles.homeText}>AI</Text>
         </View>
         <View style={styles.headerRight}>
-          {currentUser?.subscription?.isActive && (
+          {currentUser?.subscription?.isActive && currentUser?.subscription?.planId === 'premium' && (
             <TouchableOpacity 
               style={styles.styleButton}
               onPress={() => setShowStyleModal(true)}
@@ -1192,10 +1196,11 @@ export default function AI() {
         </View>
       </Modal>
       </SafeAreaView>
+    </OrientationLock>
   );
 }
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#F8F9FA' },
   scrollContainer: { flex: 1 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 24, paddingVertical: 16, backgroundColor: 'white', borderBottomWidth: 1, borderBottomColor: '#E5E5E5' },

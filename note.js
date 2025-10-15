@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -18,6 +18,8 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import userDataService from './userDataService';
 import OrientationGuard from './components/OrientationGuard';
+import { useResponsive } from './hooks/useResponsive';
+import OrientationLock from './components/OrientationLock';
 import { getScreenInfo, responsive } from './utils/responsive';
 import Svg, { G, Path } from 'react-native-svg';
 import Slider from '@react-native-community/slider';
@@ -28,6 +30,7 @@ const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 const Note = () => {
   const navigation = useNavigation();
   const route = useRoute();
+  const responsiveUtil = useResponsive();
   const [layers, setLayers] = useState([
     { id: 1, name: '레이어 1', visible: true, locked: false, paths: [] }
   ]);
@@ -574,307 +577,313 @@ const Note = () => {
 
   const responsiveStyles = getResponsiveStyles();
 
+  // 반응형 스타일 적용
+  const styles = useMemo(
+    () => responsiveUtil.applyAll(baseStyles), 
+    [responsiveUtil]
+  );
+
   return (
-    <OrientationGuard screenName="필기">
-    <View style={[styles.container, responsiveStyles.container]}>
-      <View style={[styles.statusBar, responsiveStyles.statusBar]} />
-      <View style={[styles.header, responsiveStyles.header]}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={[styles.backBtn, responsiveStyles.backBtn]}>←</Text>
-        </TouchableOpacity>
-        <Text style={[styles.title, responsiveStyles.title]}>{noteTitle || '새 노트'}</Text>
-        <TouchableOpacity onPress={saveNote} disabled={isSaving || loadingNote}>
-          {isSaving ? (
-            <ActivityIndicator size="small" color="#3B82F6" />
-          ) : (
-            <Text style={[styles.saveBtn, responsiveStyles.saveBtn]}>저장</Text>
-          )}
-        </TouchableOpacity>
-      </View>
+  <OrientationLock isNoteScreen={true}>
+  <View style={[styles.container, responsiveStyles.container]}>
+    <View style={[styles.statusBar, responsiveStyles.statusBar]} />
+    <View style={[styles.header, responsiveStyles.header]}>
+      <TouchableOpacity onPress={() => navigation.goBack()}>
+        <Text style={[styles.backBtn, responsiveStyles.backBtn]}>←</Text>
+      </TouchableOpacity>
+      <Text style={[styles.title, responsiveStyles.title]}>{noteTitle || '새 노트'}</Text>
+      <TouchableOpacity onPress={saveNote} disabled={isSaving || loadingNote}>
+        {isSaving ? (
+          <ActivityIndicator size="small" color="#3B82F6" />
+        ) : (
+          <Text style={[styles.saveBtn, responsiveStyles.saveBtn]}>저장</Text>
+        )}
+      </TouchableOpacity>
+    </View>
 
-      <View style={styles.canvas} {...canvasPanResponder.panHandlers}>
-        <Svg width={canvasWidth} height={canvasHeight}>
-          <G scale={scale} translateX={translateX} translateY={translateY}>
-            {layers.map(layer => (
-              layer.visible && (
-                <G key={layer.id}>
-                  {layer.paths.map((pathData, index) => (
-                    <Path
-                      key={`${layer.id}-${index}`}
-                      d={pathData.path}
-                      stroke={pathData.isEraser ? 'white' : pathData.color}
-                      strokeWidth={pathData.width / scale}
-                      opacity={pathData.opacity}
-                      fill="transparent"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  ))}
-                </G>
-              )
-            ))}
-            
-            {currentPath && (
-              <Path
-                d={currentPath}
-                stroke={isEraser ? 'white' : currentColor}
-                strokeWidth={(isEraser ? eraserSize : brushSize) / scale}
-                opacity={opacity}
-                fill="transparent"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            )}
-          </G>
-        </Svg>
-      </View>
-
-      <View style={[styles.bottomControls, responsiveStyles.bottomControls]}>
-        <View style={[styles.singleControlRow, responsiveStyles.singleControlRow]}>
-          <View style={[styles.controlGroup, responsiveStyles.controlGroup]}>
-            <Text style={[styles.controlLabel, responsiveStyles.controlLabel]}>{currentSize.toFixed(1)}px</Text>
-            <TouchableOpacity onPress={() => setCurrentSize(Math.max(minSize, currentSize - 0.5))}>
-              <View style={[styles.controlBtn, responsiveStyles.controlBtn]}>
-                <Text style={[styles.controlBtnText, responsiveStyles.controlBtnText]}>−</Text>
-              </View>
-            </TouchableOpacity>
-            <Slider
-              style={[styles.halfSlider, responsiveStyles.halfSlider]}
-              minimumValue={minSize}
-              maximumValue={maxSize}
-              value={currentSize}
-              onValueChange={setCurrentSize}
-              step={0.5}
-              minimumTrackTintColor="#3B82F6"
-              maximumTrackTintColor="#D1D5DB"
-            />
-            <TouchableOpacity onPress={() => setCurrentSize(Math.min(maxSize, currentSize + 0.5))}>
-              <View style={[styles.controlBtn, responsiveStyles.controlBtn]}>
-                <Text style={[styles.controlBtnText, responsiveStyles.controlBtnText]}>+</Text>
-              </View>
-            </TouchableOpacity>
-          </View>
-
-          <View style={[styles.controlGroup, responsiveStyles.controlGroup]}>
-            <Text style={[styles.controlLabel, responsiveStyles.controlLabel]}>{Math.round(opacity * 100)}%</Text>
-            <TouchableOpacity onPress={() => setOpacity(Math.max(0, opacity - 0.1))}>
-              <View style={[styles.controlBtn, responsiveStyles.controlBtn]}>
-                <Text style={[styles.controlBtnText, responsiveStyles.controlBtnText]}>−</Text>
-              </View>
-            </TouchableOpacity>
-            <Slider
-              style={[styles.halfSlider, responsiveStyles.halfSlider]}
-              minimumValue={0}
-              maximumValue={1}
-              value={opacity}
-              onValueChange={setOpacity}
-              step={0.01}
-              minimumTrackTintColor="#000000"
-              maximumTrackTintColor="#D1D5DB"
-            />
-            <TouchableOpacity onPress={() => setOpacity(Math.min(1, opacity + 0.1))}>
-              <View style={[styles.controlBtn, responsiveStyles.controlBtn]}>
-                <Text style={[styles.controlBtnText, responsiveStyles.controlBtnText]}>+</Text>
-              </View>
-            </TouchableOpacity>
-          </View>
-
-          <TouchableOpacity 
-            style={[styles.layerControlBtn, responsiveStyles.layerControlBtn]} 
-            onPress={() => setShowLayerPanel(!showLayerPanel)}
-          >
-            <Image source={require('./assets/layer.png')} style={[styles.layerControlImage, responsiveStyles.layerControlImage]} />
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      <View style={[styles.toolbar, responsiveStyles.toolbar, { left: toolbarX, top: toolbarY }]} {...toolbarPanResponder.panHandlers}>
-        <View style={styles.dragHandle} />
-        
-        <TouchableOpacity 
-          style={[styles.tool, responsiveStyles.tool, currentTool === 'pen' && styles.toolActive]} 
-          onPress={() => {setCurrentTool('pen'); setIsEraser(false);}}
-        >
-          <Text style={[styles.toolIcon, responsiveStyles.toolIcon]}>🖋️</Text>
-          <Text style={[styles.toolLabel, responsiveStyles.toolLabel]}>펜</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={[styles.tool, responsiveStyles.tool, currentTool === 'fountain' && styles.toolActive]} 
-          onPress={() => {setCurrentTool('fountain'); setIsEraser(false);}}
-        >
-          <Text style={[styles.toolIcon, responsiveStyles.toolIcon]}>🖊️</Text>
-          <Text style={[styles.toolLabel, responsiveStyles.toolLabel]}>만년필</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={[styles.tool, responsiveStyles.tool, currentTool === 'eraser' && styles.toolActive]} 
-          onPress={() => {setCurrentTool('eraser'); setIsEraser(true);}}
-        >
-          <Image 
-            source={require('./assets/erase.png')} 
-            style={[styles.toolImage, responsiveStyles.toolImage]} 
-          />
-          <Text style={[styles.toolLabel, responsiveStyles.toolLabel]}>지우개</Text>
-        </TouchableOpacity>
-
-        <View style={styles.divider} />
-
-        <TouchableOpacity style={[styles.colorBtn, responsiveStyles.colorBtn, { backgroundColor: currentColor }]} onPress={() => setShowColorPicker(!showColorPicker)} />
-
-        {showColorPicker && (
-          <ScrollView style={[styles.colorPalette, responsiveStyles.colorPalette]} showsVerticalScrollIndicator={false}>
-            {colors.map((colorRow, idx) => (
-              <View key={idx} style={[styles.colorRow, responsiveStyles.colorRow]}>
-                {colorRow.map((color) => (
-                  <TouchableOpacity
-                    key={color}
-                    style={[
-                      styles.colorItem,
-                      responsiveStyles.colorItem,
-                      { backgroundColor: color },
-                      currentColor === color && styles.colorActive,
-                      color === '#FFFFFF' && styles.whiteColor
-                    ]}
-                    onPress={() => {
-                      setCurrentColor(color);
-                      setIsEraser(false);
-                    }}
+    <View style={styles.canvas} {...canvasPanResponder.panHandlers}>
+      <Svg width={canvasWidth} height={canvasHeight}>
+        <G scale={scale} translateX={translateX} translateY={translateY}>
+          {layers.map(layer => (
+            layer.visible && (
+              <G key={layer.id}>
+                {layer.paths.map((pathData, index) => (
+                  <Path
+                    key={`${layer.id}-${index}`}
+                    d={pathData.path}
+                    stroke={pathData.isEraser ? 'white' : pathData.color}
+                    strokeWidth={pathData.width / scale}
+                    opacity={pathData.opacity}
+                    fill="transparent"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
                   />
                 ))}
+              </G>
+            )
+          ))}
+          
+          {currentPath && (
+            <Path
+              d={currentPath}
+              stroke={isEraser ? 'white' : currentColor}
+              strokeWidth={(isEraser ? eraserSize : brushSize) / scale}
+              opacity={opacity}
+              fill="transparent"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          )}
+        </G>
+      </Svg>
+    </View>
+
+    <View style={[styles.bottomControls, responsiveStyles.bottomControls]}>
+      <View style={[styles.singleControlRow, responsiveStyles.singleControlRow]}>
+        <View style={[styles.controlGroup, responsiveStyles.controlGroup]}>
+          <Text style={[styles.controlLabel, responsiveStyles.controlLabel]}>{currentSize.toFixed(1)}px</Text>
+          <TouchableOpacity onPress={() => setCurrentSize(Math.max(minSize, currentSize - 0.5))}>
+            <View style={[styles.controlBtn, responsiveStyles.controlBtn]}>
+              <Text style={[styles.controlBtnText, responsiveStyles.controlBtnText]}>−</Text>
+            </View>
+          </TouchableOpacity>
+          <Slider
+            style={[styles.halfSlider, responsiveStyles.halfSlider]}
+            minimumValue={minSize}
+            maximumValue={maxSize}
+            value={currentSize}
+            onValueChange={setCurrentSize}
+            step={0.5}
+            minimumTrackTintColor="#3B82F6"
+            maximumTrackTintColor="#D1D5DB"
+          />
+          <TouchableOpacity onPress={() => setCurrentSize(Math.min(maxSize, currentSize + 0.5))}>
+            <View style={[styles.controlBtn, responsiveStyles.controlBtn]}>
+              <Text style={[styles.controlBtnText, responsiveStyles.controlBtnText]}>+</Text>
+            </View>
+          </TouchableOpacity>
+        </View>
+
+        <View style={[styles.controlGroup, responsiveStyles.controlGroup]}>
+          <Text style={[styles.controlLabel, responsiveStyles.controlLabel]}>{Math.round(opacity * 100)}%</Text>
+          <TouchableOpacity onPress={() => setOpacity(Math.max(0, opacity - 0.1))}>
+            <View style={[styles.controlBtn, responsiveStyles.controlBtn]}>
+              <Text style={[styles.controlBtnText, responsiveStyles.controlBtnText]}>−</Text>
+            </View>
+          </TouchableOpacity>
+          <Slider
+            style={[styles.halfSlider, responsiveStyles.halfSlider]}
+            minimumValue={0}
+            maximumValue={1}
+            value={opacity}
+            onValueChange={setOpacity}
+            step={0.01}
+            minimumTrackTintColor="#000000"
+            maximumTrackTintColor="#D1D5DB"
+          />
+          <TouchableOpacity onPress={() => setOpacity(Math.min(1, opacity + 0.1))}>
+            <View style={[styles.controlBtn, responsiveStyles.controlBtn]}>
+              <Text style={[styles.controlBtnText, responsiveStyles.controlBtnText]}>+</Text>
+            </View>
+          </TouchableOpacity>
+        </View>
+
+        <TouchableOpacity 
+          style={[styles.layerControlBtn, responsiveStyles.layerControlBtn]} 
+          onPress={() => setShowLayerPanel(!showLayerPanel)}
+        >
+          <Image source={require('./assets/layer.png')} style={[styles.layerControlImage, responsiveStyles.layerControlImage]} />
+        </TouchableOpacity>
+      </View>
+    </View>
+
+    <View style={[styles.toolbar, responsiveStyles.toolbar, { left: toolbarX, top: toolbarY }]} {...toolbarPanResponder.panHandlers}>
+      <View style={styles.dragHandle} />
+      
+      <TouchableOpacity 
+        style={[styles.tool, responsiveStyles.tool, currentTool === 'pen' && styles.toolActive]} 
+        onPress={() => {setCurrentTool('pen'); setIsEraser(false);}}
+      >
+        <Text style={[styles.toolIcon, responsiveStyles.toolIcon]}>🖋️</Text>
+        <Text style={[styles.toolLabel, responsiveStyles.toolLabel]}>펜</Text>
+      </TouchableOpacity>
+      
+      <TouchableOpacity 
+        style={[styles.tool, responsiveStyles.tool, currentTool === 'fountain' && styles.toolActive]} 
+        onPress={() => {setCurrentTool('fountain'); setIsEraser(false);}}
+      >
+        <Text style={[styles.toolIcon, responsiveStyles.toolIcon]}>🖊️</Text>
+        <Text style={[styles.toolLabel, responsiveStyles.toolLabel]}>만년필</Text>
+      </TouchableOpacity>
+      
+      <TouchableOpacity 
+        style={[styles.tool, responsiveStyles.tool, currentTool === 'eraser' && styles.toolActive]} 
+        onPress={() => {setCurrentTool('eraser'); setIsEraser(true);}}
+      >
+        <Image 
+          source={require('./assets/erase.png')} 
+          style={[styles.toolImage, responsiveStyles.toolImage]} 
+        />
+        <Text style={[styles.toolLabel, responsiveStyles.toolLabel]}>지우개</Text>
+      </TouchableOpacity>
+
+      <View style={styles.divider} />
+
+      <TouchableOpacity style={[styles.colorBtn, responsiveStyles.colorBtn, { backgroundColor: currentColor }]} onPress={() => setShowColorPicker(!showColorPicker)} />
+
+      {showColorPicker && (
+        <ScrollView style={[styles.colorPalette, responsiveStyles.colorPalette]} showsVerticalScrollIndicator={false}>
+          {colors.map((colorRow, idx) => (
+            <View key={idx} style={[styles.colorRow, responsiveStyles.colorRow]}>
+              {colorRow.map((color) => (
+                <TouchableOpacity
+                  key={color}
+                  style={[
+                    styles.colorItem,
+                    responsiveStyles.colorItem,
+                    { backgroundColor: color },
+                    currentColor === color && styles.colorActive,
+                    color === '#FFFFFF' && styles.whiteColor
+                  ]}
+                  onPress={() => {
+                    setCurrentColor(color);
+                    setIsEraser(false);
+                  }}
+                />
+              ))}
+            </View>
+          ))}
+        </ScrollView>
+      )}
+
+      <View style={styles.divider} />
+
+      <TouchableOpacity style={styles.tool} onPress={undo}>
+        <Text style={styles.toolIcon}>↶</Text>
+        <Text style={styles.toolLabel}>실행취소</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity style={styles.tool} onPress={resetZoom}>
+        <Text style={styles.toolIcon}>↻</Text>
+        <Text style={styles.toolLabel}>화면초기화</Text>
+      </TouchableOpacity>
+    </View>
+
+    <Modal visible={showLayerPanel} transparent animationType="fade" onRequestClose={() => setShowLayerPanel(false)}>
+      <TouchableOpacity style={styles.layerModalOverlay} activeOpacity={1} onPress={() => setShowLayerPanel(false)}>
+        <View style={[styles.layerModal, responsiveStyles.layerModal]}>
+          <View style={[styles.layerHeader, responsiveStyles.layerHeader]}>
+            <Text style={[styles.layerTitle, responsiveStyles.layerTitle]}>레이어</Text>
+            <View style={styles.layerHeaderButtons}>
+              <TouchableOpacity 
+                onPress={toggleMultiSelectMode} 
+                style={[styles.multiSelectBtn, responsiveStyles.multiSelectBtn, isMultiSelectMode && styles.multiSelectBtnActive]}>
+                <Text style={[
+                  styles.multiSelectBtnText, 
+                  responsiveStyles.multiSelectBtnText,
+                  isMultiSelectMode && { color: '#FFF' }
+                ]}>
+                  {isMultiSelectMode ? '완료' : '선택'}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={addLayer} style={[styles.addLayerBtn, responsiveStyles.addLayerBtn]}>
+                <Text style={[styles.addLayerText, responsiveStyles.addLayerText]}>+</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+          
+          {isMultiSelectMode && (
+            <View style={[styles.multiSelectControls, responsiveStyles.multiSelectControls]}>
+              <TouchableOpacity onPress={toggleSelectAll} style={[styles.selectAllBtn, responsiveStyles.selectAllBtn]}>
+                <Text style={[styles.selectAllText, responsiveStyles.selectAllText]}>
+                  {selectedLayers.length === layers.length ? '전체 해제' : '전체 선택'}
+                </Text>
+              </TouchableOpacity>
+              <Text style={[styles.selectedCount, responsiveStyles.selectedCount]}>
+                {selectedLayers.length}개 선택됨
+              </Text>
+              <TouchableOpacity 
+                onPress={deleteSelectedLayers} 
+                style={[styles.deleteSelectedBtn, responsiveStyles.deleteSelectedBtn]}
+                disabled={selectedLayers.length === 0}
+              >
+                <Text style={[styles.deleteSelectedText, responsiveStyles.deleteSelectedText]}>삭제</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+          <ScrollView style={styles.layerScrollView} showsVerticalScrollIndicator={false}>
+            {layers.map((layer, index) => (
+              <View
+                key={layer.id}
+                style={[
+                  styles.layerItem, 
+                  responsiveStyles.layerItem, 
+                  currentLayerId === layer.id && styles.layerActive,
+                  selectedLayers.includes(layer.id) && styles.layerSelected
+                ]}
+              >
+                <View style={styles.layerContent}>
+                  {isMultiSelectMode && (
+                    <TouchableOpacity
+                      style={[styles.layerCheckbox, responsiveStyles.layerCheckbox]}
+                      onPress={() => toggleLayerSelection(layer.id)}
+                    >
+                      <Text style={[styles.checkboxIcon, responsiveStyles.checkboxIcon]}>
+                        {selectedLayers.includes(layer.id) ? '☑️' : '☐'}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                  
+                  <TouchableOpacity
+                    style={[styles.layerMainArea, responsiveStyles.layerMainArea]}
+                    onPress={() => isMultiSelectMode ? toggleLayerSelection(layer.id) : setCurrentLayerId(layer.id)}
+                  >
+                    <Text style={[styles.layerName, responsiveStyles.layerName]}>{layer.name}</Text>
+                    <Text style={[styles.layerDetails, responsiveStyles.layerDetails]}>{layer.paths.length}개</Text>
+                  </TouchableOpacity>
+                </View>
+                
+                {!isMultiSelectMode && (
+                  <View style={[styles.layerActions, responsiveStyles.layerActions]}>
+                    <TouchableOpacity 
+                      onPress={() => toggleLayerVisibility(layer.id)}
+                      style={[styles.layerActionBtn, responsiveStyles.layerActionBtn]}
+                    >
+                      <Image 
+                        source={layer.visible ? require('./assets/eyesopen.png') : require('./assets/eyesclose.png')} 
+                        style={{ width: 28, height: 28 }} 
+                      />
+                    </TouchableOpacity>
+                    
+                    <TouchableOpacity 
+                      onPress={() => toggleLayerLock(layer.id)}
+                      style={[styles.layerActionBtn, responsiveStyles.layerActionBtn]}
+                    >
+                      <Text style={styles.layerActionIcon}>{layer.locked ? '🔒' : '🔓'}</Text>
+                    </TouchableOpacity>
+                    
+                    {layers.length > 1 && (
+                      <TouchableOpacity 
+                        onPress={() => deleteLayer(layer.id)}
+                        style={[styles.layerActionBtn, responsiveStyles.layerActionBtn]}
+                      >
+                        <Text style={styles.layerActionIcon}>🗑️</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                )}
               </View>
             ))}
           </ScrollView>
-        )}
-
-        <View style={styles.divider} />
-
-        <TouchableOpacity style={styles.tool} onPress={undo}>
-          <Text style={styles.toolIcon}>↶</Text>
-          <Text style={styles.toolLabel}>실행취소</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.tool} onPress={resetZoom}>
-          <Text style={styles.toolIcon}>↻</Text>
-          <Text style={styles.toolLabel}>화면초기화</Text>
-        </TouchableOpacity>
-      </View>
-
-      <Modal visible={showLayerPanel} transparent animationType="fade" onRequestClose={() => setShowLayerPanel(false)}>
-        <TouchableOpacity style={styles.layerModalOverlay} activeOpacity={1} onPress={() => setShowLayerPanel(false)}>
-          <View style={[styles.layerModal, responsiveStyles.layerModal]}>
-            <View style={[styles.layerHeader, responsiveStyles.layerHeader]}>
-              <Text style={[styles.layerTitle, responsiveStyles.layerTitle]}>레이어</Text>
-              <View style={styles.layerHeaderButtons}>
-                <TouchableOpacity 
-                  onPress={toggleMultiSelectMode} 
-                  style={[styles.multiSelectBtn, responsiveStyles.multiSelectBtn, isMultiSelectMode && styles.multiSelectBtnActive]}>
-                  <Text style={[
-                    styles.multiSelectBtnText, 
-                    responsiveStyles.multiSelectBtnText,
-                    isMultiSelectMode && { color: '#FFF' }
-                  ]}>
-                    {isMultiSelectMode ? '완료' : '선택'}
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={addLayer} style={[styles.addLayerBtn, responsiveStyles.addLayerBtn]}>
-                  <Text style={[styles.addLayerText, responsiveStyles.addLayerText]}>+</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-            
-            {isMultiSelectMode && (
-              <View style={[styles.multiSelectControls, responsiveStyles.multiSelectControls]}>
-                <TouchableOpacity onPress={toggleSelectAll} style={[styles.selectAllBtn, responsiveStyles.selectAllBtn]}>
-                  <Text style={[styles.selectAllText, responsiveStyles.selectAllText]}>
-                    {selectedLayers.length === layers.length ? '전체 해제' : '전체 선택'}
-                  </Text>
-                </TouchableOpacity>
-                <Text style={[styles.selectedCount, responsiveStyles.selectedCount]}>
-                  {selectedLayers.length}개 선택됨
-                </Text>
-                <TouchableOpacity 
-                  onPress={deleteSelectedLayers} 
-                  style={[styles.deleteSelectedBtn, responsiveStyles.deleteSelectedBtn]}
-                  disabled={selectedLayers.length === 0}
-                >
-                  <Text style={[styles.deleteSelectedText, responsiveStyles.deleteSelectedText]}>삭제</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-            <ScrollView style={styles.layerScrollView} showsVerticalScrollIndicator={false}>
-              {layers.map((layer, index) => (
-                <View
-                  key={layer.id}
-                  style={[
-                    styles.layerItem, 
-                    responsiveStyles.layerItem, 
-                    currentLayerId === layer.id && styles.layerActive,
-                    selectedLayers.includes(layer.id) && styles.layerSelected
-                  ]}
-                >
-                  <View style={styles.layerContent}>
-                    {isMultiSelectMode && (
-                      <TouchableOpacity
-                        style={[styles.layerCheckbox, responsiveStyles.layerCheckbox]}
-                        onPress={() => toggleLayerSelection(layer.id)}
-                      >
-                        <Text style={[styles.checkboxIcon, responsiveStyles.checkboxIcon]}>
-                          {selectedLayers.includes(layer.id) ? '☑️' : '☐'}
-                        </Text>
-                      </TouchableOpacity>
-                    )}
-                    
-                    <TouchableOpacity
-                      style={[styles.layerMainArea, responsiveStyles.layerMainArea]}
-                      onPress={() => isMultiSelectMode ? toggleLayerSelection(layer.id) : setCurrentLayerId(layer.id)}
-                    >
-                      <Text style={[styles.layerName, responsiveStyles.layerName]}>{layer.name}</Text>
-                      <Text style={[styles.layerDetails, responsiveStyles.layerDetails]}>{layer.paths.length}개</Text>
-                    </TouchableOpacity>
-                  </View>
-                  
-                  {!isMultiSelectMode && (
-                    <View style={[styles.layerActions, responsiveStyles.layerActions]}>
-                      <TouchableOpacity 
-                        onPress={() => toggleLayerVisibility(layer.id)}
-                        style={[styles.layerActionBtn, responsiveStyles.layerActionBtn]}
-                      >
-                        <Image 
-                          source={layer.visible ? require('./assets/eyesopen.png') : require('./assets/eyesclose.png')} 
-                          style={{ width: 28, height: 28 }} 
-                        />
-                      </TouchableOpacity>
-                      
-                      <TouchableOpacity 
-                        onPress={() => toggleLayerLock(layer.id)}
-                        style={[styles.layerActionBtn, responsiveStyles.layerActionBtn]}
-                      >
-                        <Text style={styles.layerActionIcon}>{layer.locked ? '🔒' : '🔓'}</Text>
-                      </TouchableOpacity>
-                      
-                      {layers.length > 1 && (
-                        <TouchableOpacity 
-                          onPress={() => deleteLayer(layer.id)}
-                          style={[styles.layerActionBtn, responsiveStyles.layerActionBtn]}
-                        >
-                          <Text style={styles.layerActionIcon}>🗑️</Text>
-                        </TouchableOpacity>
-                      )}
-                    </View>
-                  )}
-                </View>
-              ))}
-            </ScrollView>
-          </View>
-        </TouchableOpacity>
-      </Modal>
-    </View>
-    </OrientationGuard>
+        </View>
+      </TouchableOpacity>
+    </Modal>
+  </View>
+  </OrientationLock>
   );
 };
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#FFF' },
   statusBar: { height: 25, backgroundColor: '#FFF' },
   header: { height: 40, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, backgroundColor: '#FFF', borderBottomWidth: 1, borderBottomColor: '#E5E7EB' },
