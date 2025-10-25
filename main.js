@@ -24,12 +24,17 @@ import { getScreenInfo, createResponsiveStyles } from './utils/responsive';
 import MobileSafeArea from './components/MobileSafeArea';
 import Header from './components/common/Header';
 import Card from './components/common/Card';
-import Button from './components/common/Button';
 import StudyLevelWidget from './components/StudyLevelWidget';
-import LevelUpModal from './components/LevelUpModal';
+import MainHeader from './components/MainHeader';
+import UniversalHeader from './components/UniversalHeader';
 import studyTimeService from './services/StudyTimeService';
 import { useResponsive } from './hooks/useResponsive';
 import OrientationLock from './components/OrientationLock';
+import { useGlobalResponsiveStyles } from './styles/globalResponsiveStyles';
+import mobileStyles, { SPACING } from './styles/mobileStyles';
+import { checkLimit, getLimitMessage, getUpgradeMessage, getUserPlan } from './utils/subscriptionLimits';
+import AttendanceModal from './AttendanceModal';
+import TodayTasksWidget from './components/TodayTasksWidget';
 
 const getSubjects = (isAdmin = false) => {
   const baseSubjects = [
@@ -38,10 +43,10 @@ const getSubjects = (isAdmin = false) => {
     '플래너',
     'AI',
     '스터디그룹 찾기',
-    '커뮤니티',
-    '스토어',
-  ];
-  
+          '커뮤니티',
+          '스토어',
+          '모의고사',
+        ];  
   if (isAdmin) {
     baseSubjects.push('👥 사용자 관리');
     baseSubjects.push('📝 게시글 관리');
@@ -111,8 +116,12 @@ export default function Main() {
   const [showNoteTypeModal, setShowNoteTypeModal] = useState(false);
   const [myStudyGroups, setMyStudyGroups] = useState([]);
   const [screenInfo, setScreenInfo] = useState(getScreenInfo());
-  const [showLevelUpModal, setShowLevelUpModal] = useState(false);
-  const [levelUpData, setLevelUpData] = useState({ oldLevel: 1, newLevel: 1 });
+  
+  // SafeAreaView 스타일 메모이제이션
+  const safeAreaStyle = useMemo(() => [
+    styles.safeArea, 
+    screenInfo.isPhone && mobileStyles.commonStyles.safeArea
+  ], [screenInfo.isPhone]);
   const [activeSubject, setActiveSubject] = useState('홈');
   const [selectedFolderId, setSelectedFolderId] = useState(null);
   
@@ -140,6 +149,7 @@ export default function Main() {
   const [banInfo, setBanInfo] = useState(null);
   const [loading, setLoading] = useState(true);
   const [imagesLoaded, setImagesLoaded] = useState(false);
+  const [showAttendance, setShowAttendance] = useState(false);
   const [dataLoaded, setDataLoaded] = useState(false);
   const [isFirstLoad, setIsFirstLoad] = useState(true);
   const [userDataLoaded, setUserDataLoaded] = useState(false);
@@ -156,6 +166,54 @@ export default function Main() {
     initializeStudyTimeService();
   }, []);
 
+  // currentUser가 로드되면 출석 모달 체크
+  useEffect(() => {
+    if (currentUser?.id) {
+      checkShouldShowAttendance();
+    }
+  }, [currentUser]);
+
+  // 출석 모달 표시 여부 확인 (계정별)
+  const checkShouldShowAttendance = async () => {
+    try {
+      if (!currentUser?.id) return; // 로그인 안 되어 있으면 표시 안 함
+      
+      const lastShownKey = `attendance_last_shown_${currentUser.id}`;
+      const lastShown = await AsyncStorage.getItem(lastShownKey);
+      const today = new Date().toDateString();
+      
+      // 오늘 아직 모달을 보여주지 않았으면 표시
+      if (lastShown !== today) {
+        // 로딩 완료 후 1초 뒤에 표시
+        setTimeout(() => {
+          setShowAttendance(true);
+        }, 1000);
+        await AsyncStorage.setItem(lastShownKey, today);
+      }
+    } catch (error) {
+      console.error('출석 모달 표시 확인 실패:', error);
+    }
+  };
+
+  // 자정 체크 - 날짜가 바뀌면 출석 가능 상태만 초기화 (모달은 표시 안 함)
+  useEffect(() => {
+    const checkMidnight = setInterval(async () => {
+      const now = new Date();
+      const hours = now.getHours();
+      const minutes = now.getMinutes();
+      
+      // 자정(00:00)이면 출석 가능 상태 초기화
+      if (hours === 0 && minutes === 0) {
+        // 모달 표시 기록만 삭제 (다음 앱 실행 시 표시되도록)
+        if (currentUser?.id) {
+          await AsyncStorage.removeItem(`attendance_last_shown_${currentUser.id}`);
+        }
+      }
+    }, 60000); // 1분마다 체크
+
+    return () => clearInterval(checkMidnight);
+  }, [currentUser]);
+
   // StudyTimeService 초기화
   const initializeStudyTimeService = async () => {
     try {
@@ -163,8 +221,7 @@ export default function Main() {
       
       // 레벨업 리스너 등록
       const handleLevelUp = (oldLevel, newLevel) => {
-        setLevelUpData({ oldLevel, newLevel });
-        setShowLevelUpModal(true);
+        navigation.navigate('LevelUpScreen', { oldLevel, newLevel });
       };
 
       // 경험치 변화 리스너 등록 (공부시간 업데이트용)
@@ -412,6 +469,7 @@ export default function Main() {
               id: note._id,
               name: note.title,
               title: note.title,
+              content: note.content || '', // content 추가
               date: new Date(note.createdAt).toLocaleDateString('ko-KR'),
               color: noteColors[index % noteColors.length], // 색상 순환 할당
               type: noteType, // 노트 타입 추가
@@ -451,7 +509,8 @@ export default function Main() {
       'AI': 'AI',
       '스터디그룹 찾기': 'StudyGroup',
       '커뮤니티': 'Community',
-      '스토어': 'Store'
+      '스토어': 'Store',
+      '모의고사': 'MockExamScreen'
     };
     
     console.log('screenMap에서 찾은 화면:', screenMap[subjectName]);
@@ -641,48 +700,25 @@ export default function Main() {
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <TouchableOpacity style={styles.hamburgerButton} onPress={toggleSidebar}>
-            <View style={styles.hamburgerLine} />
-            <View style={styles.hamburgerLine} />
-            <View style={styles.hamburgerLine} />
-          </TouchableOpacity>
-          <Text style={styles.title}>StudyTime</Text>
-          <Text style={styles.homeText}>홈</Text>
-        </View>
-        <TouchableOpacity 
-          style={styles.profileIcon}
-          onPress={() => navigation.navigate('Settings')}
-        >
-          {currentUser?.profileImage ? (
-            <Image 
-              source={{ uri: currentUser.profileImage }} 
-              style={styles.profileImage}
-              onError={(error) => {
-                console.log('프로필 이미지 로드 실패:', error.nativeEvent.error);
-                console.log('이미지 URL:', currentUser.profileImage);
-              }}
-              onLoad={() => {
-                console.log('프로필 이미지 로드 성공:', currentUser.profileImage);
-              }}
-            />
-          ) : (
-            <View style={styles.defaultProfileIcon}>
-              <Text style={styles.profileText}>
-                {currentUser?.name?.charAt(0) || currentUser?.email?.charAt(0) || '?'}
-              </Text>
-            </View>
-          )}
-          {/* 읽지 않은 메시지가 있을 때 느낌표 표시 */}
-          {unreadMessageCount > 0 && (
-            <View style={styles.profileNotification}>
-              <Text style={styles.profileNotificationText}>!</Text>
-            </View>
-          )}
-        </TouchableOpacity>
-      </View>
+    <>
+    <SafeAreaView style={safeAreaStyle}>
+      {/* 모바일: UniversalHeader, 태블릿: MainHeader */}
+      <UniversalHeader 
+        title="홈" 
+        showBackButton={false}
+        onHamburgerPress={toggleSidebar}
+        unreadMessageCount={unreadMessageCount}
+      />
+      {!screenInfo.isPhone && (
+        <MainHeader 
+          screenInfo={screenInfo}
+          mobileStyles={mobileStyles}
+          onHamburgerPress={toggleSidebar}
+          onProfilePress={() => navigation.navigate('Settings')}
+          currentUser={currentUser}
+          unreadMessageCount={unreadMessageCount}
+        />
+      )}
       <MiniTimer />
       <View style={[styles.container, screenInfo.isPhone && styles.phoneContainer]}>
         {/* 데스크톱 사이드바 */}
@@ -705,11 +741,6 @@ export default function Main() {
                 </TouchableOpacity>
               ))}
             </ScrollView>
-            <View style={styles.bottomDots}>
-              <View style={[styles.dot, styles.activeDot]} />
-              <View style={styles.dot} />
-              <View style={styles.dot} />
-            </View>
           </View>
         )}
 
@@ -762,7 +793,7 @@ export default function Main() {
             screenInfo.isPhone && styles.phoneMainContent
           ]} contentContainerStyle={[
             styles.scrollContentContainer,
-            screenInfo.isPhone && styles.phoneScrollContainer
+            screenInfo.isPhone && mobileStyles.commonStyles.contentContainer
           ]} showsVerticalScrollIndicator={false}>
           {/* 오늘의 공부 시간 */}
           {userData && (
@@ -785,6 +816,9 @@ export default function Main() {
           <StudyLevelWidget 
             onPress={() => navigation.navigate('StudyStatsScreen')}
           />
+
+          {/* 오늘 할일 위젯 */}
+          <TodayTasksWidget navigation={navigation} />
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>나의 필기</Text>
             <View style={[styles.foldersGrid, screenInfo.isPhone && styles.phoneFoldersGrid]}>
@@ -799,7 +833,7 @@ export default function Main() {
                     } else if (f.type === 'pdf') {
                       navigation.navigate('PdfViewer', { noteId: f.id, noteTitle: f.name });
                     } else {
-                      navigation.navigate('NoteEditor', { noteId: f.id, title: f.name });
+                      navigation.navigate('NoteEditor', { noteId: f.id, title: f.name, content: f.content });
                     }
                   }} 
                   onOptionsPress={(id) => { setSelectedFolderId(id); setShowOptionsModal(true); }} 
@@ -915,19 +949,6 @@ export default function Main() {
                 <Text style={styles.noteTypeTitle}>그림 노트</Text>
                 <Text style={styles.noteTypeDescription}>손으로 그리기</Text>
               </TouchableOpacity>
-
-              
-              <TouchableOpacity 
-                style={styles.noteTypeButton}
-                onPress={() => {
-                  setShowNoteTypeModal(false);
-                  navigation.navigate('PdfViewer', { mode: 'pdf' });
-                }}
-              >
-                <Text style={styles.noteTypeIcon}>📄</Text>
-                <Text style={styles.noteTypeTitle}>PDF 열기</Text>
-                <Text style={styles.noteTypeDescription}>PDF 파일 불러오기</Text>
-              </TouchableOpacity>
             </View>
             
             <TouchableOpacity 
@@ -947,14 +968,14 @@ export default function Main() {
         onClose={() => setShowBanModal(false)}
       />
 
-      {/* 레벨업 모달 */}
-      <LevelUpModal
-        visible={showLevelUpModal}
-        oldLevel={levelUpData.oldLevel}
-        newLevel={levelUpData.newLevel}
-        onClose={() => setShowLevelUpModal(false)}
+      {/* 출석체크 모달 */}
+      <AttendanceModal
+        visible={showAttendance}
+        onClose={() => setShowAttendance(false)}
+        userId={currentUser?._id || currentUser?.id || 'guest'}
       />
     </SafeAreaView>
+    </>
   );
 }
 
@@ -1110,8 +1131,8 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 22, fontWeight: '600', color: '#000' },
   foldersGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 16 },
   folderItem: createResponsiveStyles(
-    { width: 140, height: 180 },
-    { width: 110, height: 140 } // 모바일에서 크기 축소
+    { width: 140, height: 180 }, // 태블릿: 원래대로
+    { width: '30%', aspectRatio: 0.78 } // 모바일: 3개씩 (30% x 3 + gap)
   ),
   notebookCover: { flex: 1, borderRadius: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 6, position: 'relative', overflow: 'hidden' },
   notebookSpine: { position: 'absolute', left: 8, top: 0, bottom: 0, width: 4, backgroundColor: 'rgba(0, 0, 0, 0.15)', borderRadius: 2 },
@@ -1133,8 +1154,8 @@ const styles = StyleSheet.create({
     { fontSize: 11 } // 모바일에서 폰트 크기 축소
   ),
   addFolderItem: createResponsiveStyles(
-    { width: 140, height: 180 },
-    { width: 110, height: 140 } // 모바일에서 크기 축소
+    { width: 140, height: 180 }, // 태블릿: 원래대로
+    { width: '30%', aspectRatio: 0.78 } // 모바일: 3개씩 (30% x 3 + gap)
   ),
   addNotebookCover: { flex: 1, borderRadius: 12, backgroundColor: 'white', borderWidth: 2, borderColor: '#D0D0D0', borderStyle: 'dashed', justifyContent: 'center', alignItems: 'center', gap: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 4, elevation: 2 },
   addIcon: { fontSize: 32, color: '#999', fontWeight: '300' },
@@ -1535,7 +1556,7 @@ const getResponsiveStylesForMain = () => {
       searchInput: { fontSize: 13 },
       subjectItem: { paddingVertical: 10, paddingHorizontal: 12 },
       subjectText: { fontSize: 14 },
-      scrollContentContainer: { padding: 16, gap: 16, paddingBottom: 48 },
+      scrollContentContainer: { padding: 16, gap: 8, paddingBottom: 48 },
       sectionTitle: { fontSize: 18 },
       studyTimeBox: { margin: 10, padding: 14 },
       studyTimeTitle: { fontSize: 14 },
@@ -1557,7 +1578,7 @@ const getResponsiveStylesForMain = () => {
       header: { paddingHorizontal: 16, paddingVertical: 12 },
       title: { fontSize: 24 },
       homeText: { fontSize: 15 },
-      scrollContentContainer: { padding: 20, gap: 20, paddingBottom: 56 },
+      scrollContentContainer: { padding: 20, gap: 12, paddingBottom: 56 },
       sectionTitle: { fontSize: 20 },
       studyTimeBox: { margin: 12, padding: 16 },
       studyTimeTitle: { fontSize: 15 },

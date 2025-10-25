@@ -10,11 +10,13 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Dimensions,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import userDataService from './userDataService';
 import { useResponsive } from './hooks/useResponsive';
 import OrientationLock from './components/OrientationLock';
+import { getScreenInfo } from './utils/responsive';
 
 export default function NoteEditor() {
   const navigation = useNavigation();
@@ -24,6 +26,15 @@ export default function NoteEditor() {
   const [content, setContent] = useState('');
   const [loading, setLoading] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [screenInfo, setScreenInfo] = useState(getScreenInfo());
+
+  // 화면 크기 변경 감지
+  useEffect(() => {
+    const subscription = Dimensions.addEventListener('change', () => {
+      setScreenInfo(getScreenInfo());
+    });
+    return () => subscription?.remove();
+  }, []);
   
   // 라우트에서 노트 정보 가져오기
   const noteId = route.params?.noteId;
@@ -43,6 +54,14 @@ export default function NoteEditor() {
       Alert.alert('알림', '제목을 입력해주세요.');
       return;
     }
+
+    console.log('📝 [noteEditor] saveNote 호출:', {
+      isEditing,
+      noteId,
+      title: title.trim(),
+      content: content.trim(),
+      contentLength: content.trim().length
+    });
 
     try {
       setLoading(true);
@@ -74,7 +93,24 @@ export default function NoteEditor() {
       }
     } catch (error) {
       console.error('노트 저장 실패:', error);
-      Alert.alert('오류', '노트 저장에 실패했습니다.');
+      
+      // 제한 도달 에러 처리
+      if (error.limitReached) {
+        const planName = error.currentPlan === 'free' ? '무료' : 
+                        error.currentPlan === 'basic' ? '베이직' : '프리미엄';
+        const noteTypeName = error.noteType === 'drawing' ? '그림' : '텍스트';
+        
+        Alert.alert(
+          '노트 개수 제한',
+          `${error.message}\n\n현재 플랜: ${planName}\n\n더 많은 노트를 생성하려면 스토어에서 플랜을 업그레이드하세요.`,
+          [
+            { text: '취소', style: 'cancel' },
+            { text: '스토어로 이동', onPress: () => navigation.navigate('Store') }
+          ]
+        );
+      } else {
+        Alert.alert('오류', error.message || '노트 저장에 실패했습니다.');
+      }
     } finally {
       setLoading(false);
     }
@@ -96,24 +132,32 @@ export default function NoteEditor() {
   };
 
   // 반응형 스타일 적용
+  const getResponsiveStyles = () => {
+    if (screenInfo.isPhone) {
+      return phoneStyles;
+    }
+    return {};
+  };
+
+  const responsiveStyles = getResponsiveStyles();
   const styles = useMemo(
     () => responsiveUtil.applyAll(baseStyles), 
     [responsiveUtil]
   );
 
   return (
-    <OrientationLock isNoteScreen={true}>
+    <OrientationLock isNoteScreen={false}>
       <SafeAreaView style={styles.safeArea}>
       <KeyboardAvoidingView 
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         {/* 헤더 */}
-        <View style={styles.header}>
+        <View style={[styles.header, responsiveStyles.header]}>
           <TouchableOpacity onPress={handleBack}>
-            <Text style={styles.backButton}>← 뒤로</Text>
+            <Text style={[styles.backButton, responsiveStyles.backButton]}>← 뒤로</Text>
           </TouchableOpacity>
-          <Text style={styles.title}>
+          <Text style={[styles.title, responsiveStyles.title]}>
             {isEditing ? '노트 수정' : '새 노트'}
           </Text>
           <View style={styles.headerRight}>
@@ -121,17 +165,17 @@ export default function NoteEditor() {
               {loading ? (
                 <ActivityIndicator size="small" color="#5C7CFA" />
               ) : (
-                <Text style={styles.saveButton}>저장</Text>
+                <Text style={[styles.saveButton, responsiveStyles.saveButton]}>저장</Text>
               )}
             </TouchableOpacity>
           </View>
         </View>
 
         {/* 노트 편집 영역 */}
-        <View style={styles.editorContainer}>
+        <View style={[styles.editorContainer, responsiveStyles.editorContainer]}>
           {/* 제목 입력 */}
           <TextInput
-            style={styles.titleInput}
+            style={[styles.titleInput, responsiveStyles.titleInput]}
             placeholder="제목을 입력하세요..."
             value={title}
             onChangeText={setTitle}
@@ -141,7 +185,7 @@ export default function NoteEditor() {
 
           {/* 내용 입력 */}
           <TextInput
-            style={styles.contentInput}
+            style={[styles.contentInput, responsiveStyles.contentInput]}
             placeholder="내용을 입력하세요..."
             value={content}
             onChangeText={setContent}
@@ -150,11 +194,11 @@ export default function NoteEditor() {
           />
 
           {/* 글자 수 표시 */}
-          <View style={styles.statusBar}>
-            <Text style={styles.statusText}>
+          <View style={[styles.statusBar, responsiveStyles.statusBar]}>
+            <Text style={[styles.statusText, responsiveStyles.statusText]}>
               제목: {title.length}/100자
             </Text>
-            <Text style={styles.statusText}>
+            <Text style={[styles.statusText, responsiveStyles.statusText]}>
               내용: {content.length}자
             </Text>
           </View>
@@ -182,20 +226,30 @@ const baseStyles = StyleSheet.create({
     backgroundColor: 'white',
     borderBottomWidth: 1,
     borderBottomColor: '#E5E5E5',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 3,
   },
   backButton: {
     fontSize: 16,
     color: '#5C7CFA',
+    width: 60,
   },
   title: {
     fontSize: 18,
     fontWeight: 'bold',
     color: '#333',
+    flex: 1,
+    textAlign: 'center',
   },
   headerRight: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+    width: 60,
+    justifyContent: 'flex-end',
   },
   drawingModeButton: {
     backgroundColor: '#f59e0b',
@@ -251,5 +305,48 @@ const baseStyles = StyleSheet.create({
   statusText: {
     fontSize: 12,
     color: '#999',
+  },
+});
+
+const phoneStyles = StyleSheet.create({
+  header: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    paddingTop: Platform.OS === 'ios' ? 52 : 32, // Safe Area: iOS 44+8, Android 24+8
+  },
+  backButton: {
+    fontSize: 15,
+    width: 50,
+  },
+  title: {
+    fontSize: 16,
+    flex: 1,
+    textAlign: 'center',
+  },
+  saveButton: {
+    fontSize: 15,
+  },
+  headerRight: {
+    width: 50,
+    justifyContent: 'flex-end',
+  },
+  editorContainer: {
+    margin: 12,
+    padding: 12,
+  },
+  titleInput: {
+    fontSize: 18,
+    paddingBottom: 10,
+    marginBottom: 12,
+  },
+  contentInput: {
+    fontSize: 15,
+    lineHeight: 22,
+  },
+  statusBar: {
+    paddingTop: 10,
+  },
+  statusText: {
+    fontSize: 11,
   },
 });

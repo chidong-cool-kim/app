@@ -68,7 +68,7 @@ class EmailService {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000);
 
-      const response = await fetch(`${this.backendUrl}/send-verification-code`, {
+      const response = await fetch(`${this.backendUrl}/signup/send-verification-code`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -131,7 +131,7 @@ class EmailService {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000);
 
-      const response = await fetch(`${this.backendUrl}/verify-code`, {
+      const response = await fetch(`${this.backendUrl}/signup/verify-code`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

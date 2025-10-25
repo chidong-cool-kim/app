@@ -28,8 +28,12 @@ import ShootingStarEffect from './components/ShootingStarEffect';
 import UserProfileModal from './components/UserProfileModal';
 import effectSettingsService from './services/EffectSettingsService';
 import { getScreenInfo } from './utils/responsive';
-
-const API_URL = 'http://192.168.45.53:5000';
+import { useGlobalResponsiveStyles } from './styles/globalResponsiveStyles';
+import mobileStyles from './styles/mobileStyles';
+import UniversalHeader from './components/UniversalHeader';
+const API_URL = Platform.OS === 'web' 
+  ? 'http://localhost:5000' 
+  : 'http://192.168.45.53:5000';
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
 const getSubjects = (isAdmin = false) => {
@@ -87,7 +91,13 @@ export default function Community() {
     isPremiumUser: false,
     effectIntensity: 30,
   });
-  const [responsiveStyles, setResponsiveStyles] = useState(getResponsiveStyles());
+  const globalStyles = useGlobalResponsiveStyles();
+  const mobileAIStyles = screenInfo.isPhone ? {
+    ...mobileStyles.commonStyles,
+    ...mobileStyles.headerStyles,
+    ...mobileStyles.sidebarStyles,
+  } : {};
+  const responsiveStyles = useMemo(() => ({ ...globalStyles, ...mobileAIStyles }), [globalStyles, mobileAIStyles]);
 
   useEffect(() => {
     loadUserInfo();
@@ -108,7 +118,6 @@ export default function Community() {
       const newScreenInfo = getScreenInfo();
       setScreenInfo(newScreenInfo);
       setSidebarVisible(!newScreenInfo.isPhone);
-      setResponsiveStyles(getResponsiveStyles());
     });
     
     return () => subscription?.remove();
@@ -195,7 +204,7 @@ export default function Community() {
       '스터디그룹 찾기': 'StudyGroup',
       '커뮤니티': 'Community',
       '스토어': 'Store',
-      '모의고사': 'ExamAnswers'
+      '모의고사': 'MockExamScreen'
     };
     
     if (subjectName === '👥 사용자 관리') {
@@ -653,17 +662,26 @@ export default function Community() {
     }
   };
 
-  // 반응형 스타일 적용
-  const styles = useMemo(
-    () => responsiveUtil.applyAll(baseStyles), 
-    [responsiveUtil]
-  );
+  // 반응형 스타일 적용 (커뮤니티는 하얀 배경)
+  const styles = useMemo(() => ({ 
+    ...baseStyles, 
+    ...globalStyles, 
+    ...mobileAIStyles,
+    safeArea: { ...baseStyles.safeArea, backgroundColor: '#FFFFFF' },
+    mainContent: { ...baseStyles.mainContent, backgroundColor: '#FFFFFF' }
+  }), []);
 
   return (
     <OrientationLock isNoteScreen={false}>
       <SafeAreaView style={styles.safeArea}>
-      {/* 헤더 - Main.js와 완전 동일 */}
-      <View style={[styles.header, responsiveStyles.header]}>
+      {/* 모바일: UniversalHeader, 태블릿: 기존 헤더 */}
+      <UniversalHeader 
+        title="커뮤니티" 
+        showBackButton={false}
+        onHamburgerPress={toggleSidebar}
+      />
+      {screenInfo.width >= 768 && (
+      <View style={styles.header}>
         <View style={styles.headerLeft}>
           <TouchableOpacity 
             style={styles.hamburgerButton}
@@ -695,6 +713,7 @@ export default function Community() {
           )}
         </TouchableOpacity>
       </View>
+      )}
 
       <View style={[styles.container, screenInfo.isPhone && styles.phoneContainer]}>
         {/* 데스크톱 사이드바 */}
@@ -1023,17 +1042,17 @@ export default function Community() {
         onRequestClose={() => setShowDetailModal(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.detailModalContent}>
+          <View style={[styles.detailModalContent, responsiveStyles.detailModalContent]}>
             {selectedPost && (
               <>
-                <View style={styles.detailModalHeader}>
+                <View style={[styles.detailModalHeader, responsiveStyles.detailModalHeader]}>
                   <TouchableOpacity onPress={() => setShowDetailModal(false)}>
-                    <Text style={styles.backText}>← 뒤로</Text>
+                    <Text style={[styles.backText, responsiveStyles.backText]}>← 뒤로</Text>
                   </TouchableOpacity>
                 </View>
-                <ScrollView style={styles.detailModalBody}>
-                  <View style={styles.detailPostCard}>
-                    <View style={styles.postHeader}>
+                <ScrollView style={[styles.detailModalBody, responsiveStyles.detailModalBody]}>
+                  <View style={[styles.detailPostCard, responsiveStyles.detailPostCard]}>
+                    <View style={[styles.postHeader, responsiveStyles.postHeader]}>
                       <TouchableOpacity style={styles.authorInfo} onPress={() => handleProfilePress(selectedPost.authorEmail)}>
                         <View style={styles.authorAvatar}>
                           {(selectedPost.authorImage || (currentUser && (selectedPost.author === currentUser.name || selectedPost.author === currentUser.email || selectedPost.author === "나"))) ? (
@@ -1070,20 +1089,20 @@ export default function Community() {
                       </TouchableOpacity>
                     </View>
                     
-                    <Text style={styles.detailPostTitle}>{selectedPost.title}</Text>
-                    <Text style={styles.detailPostContent}>{selectedPost.content}</Text>
+                    <Text style={[styles.detailPostTitle, responsiveStyles.detailPostTitle]}>{selectedPost.title}</Text>
+                    <Text style={[styles.detailPostContent, responsiveStyles.detailPostContent]}>{selectedPost.content}</Text>
                     
                     {selectedPost.image && (
                       <TouchableOpacity onPress={() => handleImagePress(selectedPost.image)}>
                         <Image 
                           source={{ uri: selectedPost.image }} 
-                          style={styles.detailImage}
+                          style={[styles.detailImage, responsiveStyles.detailImage]}
                           resizeMode="contain"
                         />
                       </TouchableOpacity>
                     )}
                     
-                    <View style={styles.detailPostFooter}>
+                    <View style={[styles.detailPostFooter, responsiveStyles.detailPostFooter]}>
                       <TouchableOpacity 
                         style={styles.likeButton}
                         onPress={() => handleLikePost(selectedPost.id)}
@@ -1097,44 +1116,44 @@ export default function Community() {
                     </View>
                   </View>
                   
-                  <View style={styles.commentsSection}>
-                    <Text style={styles.commentsTitle}>댓글 {selectedPost.comments.length}개</Text>
+                  <View style={[styles.commentsSection, responsiveStyles.commentsSection]}>
+                    <Text style={[styles.commentsTitle, responsiveStyles.commentsTitle]}>댓글 {selectedPost.comments.length}개</Text>
                     
                     {selectedPost.comments.map((comment) => (
-                      <View key={comment.id} style={styles.commentCard}>
-                        <View style={styles.commentHeader}>
+                      <View key={comment.id} style={[styles.commentCard, responsiveStyles.commentCard]}>
+                        <View style={[styles.commentHeader, responsiveStyles.commentHeader]}>
                           <View style={styles.authorInfo}>
-                            <View style={styles.commentAvatar}>
+                            <View style={[styles.commentAvatar, responsiveStyles.commentAvatar]}>
                               {(comment.authorImage || (currentUser && (comment.author === currentUser.name || comment.author === currentUser.email || comment.author === "나"))) ? (
                                 <Image 
                                   source={{ uri: comment.authorImage || currentUser?.profileImage }} 
-                                  style={styles.commentAvatarImage}
+                                  style={[styles.commentAvatarImage, responsiveStyles.commentAvatarImage]}
                                 />
                               ) : (
-                                <Text style={styles.commentAvatarText}>
+                                <Text style={[styles.commentAvatarText, responsiveStyles.commentAvatarText]}>
                                   {comment.author.charAt(0)}
                                 </Text>
                               )}
                             </View>
                             <View>
-                              <Text style={styles.commentAuthor}>{comment.author}</Text>
-                              <Text style={styles.commentDate}>{comment.date}</Text>
+                              <Text style={[styles.commentAuthor, responsiveStyles.commentAuthor]}>{comment.author}</Text>
+                              <Text style={[styles.commentDate, responsiveStyles.commentDate]}>{comment.date}</Text>
                             </View>
                           </View>
                           
                           <TouchableOpacity 
-                            style={styles.commentLikeButton}
+                            style={[styles.commentLikeButton, responsiveStyles.commentLikeButton]}
                             onPress={() => handleLikeComment(comment.id)}
                           >
                             <Image
                               source={comment.likedByUser ? require('./assets/heart.png') : require('./assets/unheart.png')}
-                              style={[styles.commentLikeIcon, comment.likedByUser && styles.likedIcon]}
+                              style={[styles.commentLikeIcon, responsiveStyles.commentLikeIcon, comment.likedByUser && styles.likedIcon]}
                             />
-                            <Text style={styles.commentLikeCount}>{comment.likes}</Text>
+                            <Text style={[styles.commentLikeCount, responsiveStyles.commentLikeCount]}>{comment.likes}</Text>
                           </TouchableOpacity>
                         </View>
                         
-                        <Text style={styles.commentContent}>
+                        <Text style={[styles.commentContent, responsiveStyles.commentContent]}>
                           {comment.content}
                         </Text>
                       </View>
@@ -1142,9 +1161,9 @@ export default function Community() {
                   </View>
                 </ScrollView>
                 
-                <View style={styles.commentInputContainer}>
+                <View style={[styles.commentInputContainer, responsiveStyles.commentInputContainer]}>
                   <TextInput
-                    style={styles.commentInput}
+                    style={[styles.commentInput, responsiveStyles.commentInput]}
                     placeholder="댓글을 입력하세요..."
                     placeholderTextColor="#999"
                     value={newComment}
@@ -1153,10 +1172,10 @@ export default function Community() {
                     maxLength={500}
                   />
                   <TouchableOpacity 
-                    style={styles.commentSubmitButton}
+                    style={[styles.commentSubmitButton, responsiveStyles.commentSubmitButton]}
                     onPress={handleAddComment}
                   >
-                    <Text style={styles.commentSubmitText}>전송</Text>
+                    <Text style={[styles.commentSubmitText, responsiveStyles.commentSubmitText]}>전송</Text>
                   </TouchableOpacity>
                 </View>
               </>
@@ -1240,9 +1259,9 @@ export default function Community() {
 }
 
 const baseStyles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#F8F9FA' },
+  safeArea: { flex: 1, backgroundColor: '#FFFFFF' },
   // 헤더 스타일 - Main.js와 완전 동일
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 24, paddingVertical: 16, backgroundColor: 'white', borderBottomWidth: 1, borderBottomColor: '#E5E5E5' },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 24, paddingVertical: 16, paddingTop: Platform.OS === 'ios' ? 60 : 40, backgroundColor: 'white', borderBottomWidth: 1, borderBottomColor: '#E5E5E5' },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   hamburgerButton: { width: 24, height: 24, justifyContent: 'space-between', paddingVertical: 2 },
   hamburgerLine: { width: '100%', height: 3, backgroundColor: '#333', borderRadius: 2 },
@@ -1272,14 +1291,14 @@ const baseStyles = StyleSheet.create({
   activeDot: { backgroundColor: '#666' },
   
   // 메인 콘텐츠
-  mainContent: { flex: 1, backgroundColor: 'white' },
+  mainContent: { flex: 1, backgroundColor: '#FFFFFF' },
   mainContentExpanded: { paddingLeft: 16 },
   scrollContentContainer: { padding: 32, gap: 32, paddingBottom: 64 },
   communityHeader: { padding: screenWidth < 768 ? 16 : 32, paddingBottom: screenWidth < 768 ? 12 : 24, borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
   communityTitle: { fontSize: screenWidth < 768 ? 22 : 28, fontWeight: '700', color: '#000', marginBottom: 8 },
   communitySubtitle: { fontSize: 16, color: '#666', fontWeight: '400' },
   postsContainer: { flex: 1, padding: screenWidth < 768 ? 4 : 24 },
-  postCard: { backgroundColor: 'white', borderRadius: screenWidth < 768 ? 12 : 16, padding: screenWidth < 768 ? 16 : 20, paddingLeft: screenWidth < 768 ? 32 : 20, marginBottom: screenWidth < 768 ? 16 : 16, minHeight: screenWidth < 768 ? 160 : 'auto', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 8, elevation: 3, borderWidth: 1, borderColor: '#F0F0F0', position: 'relative', overflow: 'hidden' },
+  postCard: { backgroundColor: 'white', borderRadius: screenWidth < 768 ? 12 : 16, padding: screenWidth < 768 ? 16 : 20, paddingLeft: screenWidth < 768 ? 16 : 20, marginBottom: screenWidth < 768 ? 16 : 16, minHeight: screenWidth < 768 ? 160 : 'auto', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 8, elevation: 3, borderWidth: 1, borderColor: '#F0F0F0', position: 'relative', overflow: 'hidden' },
   postSnowContainer: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 0, pointerEvents: 'none' },
   postHeader: { marginBottom: 16, maxWidth: screenWidth < 768 ? '50%' : '100%', position: 'relative', zIndex: 10 },
   authorInfo: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, position: 'relative', zIndex: 10 },
@@ -1439,7 +1458,7 @@ const getResponsiveStyles = () => {
       communityTitle: { fontSize: 18, marginBottom: 6 },
       communitySubtitle: { fontSize: 13 },
       postsContainer: { padding: 8 },
-      postCard: { borderRadius: 10, padding: 12, paddingLeft: 24, marginBottom: 12, minHeight: 140 },
+      postCard: { borderRadius: 10, padding: 12, paddingLeft: 12, marginBottom: 12, minHeight: 140 },
       postHeader: { marginBottom: 12 },
       authorAvatar: { width: 36, height: 36, borderRadius: 18 },
       authorAvatarText: { fontSize: 15 },
@@ -1470,13 +1489,39 @@ const getResponsiveStyles = () => {
       communityTitle: { fontSize: 22, marginBottom: 8 },
       communitySubtitle: { fontSize: 15 },
       postsContainer: { padding: 12 },
-      postCard: { borderRadius: 12, padding: 16, paddingLeft: 32, marginBottom: 16, minHeight: 160 },
+      postCard: { borderRadius: 12, padding: 16, paddingLeft: 16, marginBottom: 16, minHeight: 160 },
       authorAvatar: { width: 40, height: 40, borderRadius: 20 },
       authorAvatarText: { fontSize: 16 },
       authorAvatarImage: { width: 40, height: 40, borderRadius: 20 },
       authorName: { fontSize: 14, fontWeight: '700', letterSpacing: 0.4, color: '#1a1a1a' },
       postDate: { fontSize: 12, marginTop: 4, color: '#888' },
       fab: { right: 16, bottom: 16 },
+      detailModalContent: { marginTop: 20, borderTopLeftRadius: 16, borderTopRightRadius: 16 },
+      detailModalHeader: { padding: 16, paddingTop: Platform.OS === 'ios' ? 24 : 16 },
+      backText: { fontSize: 15 },
+      detailModalBody: { padding: 16 },
+      detailPostCard: { marginBottom: 20, borderRadius: 10 },
+      detailPostTitle: { fontSize: 20, marginBottom: 14 },
+      detailPostContent: { fontSize: 15, lineHeight: 22, marginBottom: 18 },
+      detailImage: { width: 150, height: 150, borderRadius: 10, marginBottom: 14 },
+      detailPostFooter: { paddingTop: 14 },
+      commentsSection: { gap: 14 },
+      commentsTitle: { fontSize: 16, marginBottom: 6 },
+      commentCard: { borderRadius: 10, padding: 14, marginBottom: 10 },
+      commentHeader: { marginBottom: 10 },
+      commentAvatar: { width: 28, height: 28, borderRadius: 14 },
+      commentAvatarText: { fontSize: 13 },
+      commentAvatarImage: { width: 28, height: 28, borderRadius: 14 },
+      commentAuthor: { fontSize: 13 },
+      commentDate: { fontSize: 11 },
+      commentContent: { fontSize: 14, lineHeight: 19 },
+      commentLikeButton: { gap: 3 },
+      commentLikeIcon: { width: 20, height: 20 },
+      commentLikeCount: { fontSize: 11 },
+      commentInputContainer: { padding: 16, paddingBottom: Platform.OS === 'ios' ? 34 : 16, gap: 10 },
+      commentInput: { borderRadius: 18, paddingHorizontal: 14, paddingVertical: 10, fontSize: 14, maxHeight: 90 },
+      commentSubmitButton: { borderRadius: 18, paddingHorizontal: 18, paddingVertical: 10 },
+      commentSubmitText: { fontSize: 14 },
     };
   }
   

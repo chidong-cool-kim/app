@@ -290,57 +290,57 @@ export const detailedResponsiveSpacing = {
   }
 };
 
-// 반응형 폰트 크기 - 기존 호환성 유지
+// 반응형 폰트 크기 - Galaxy S20 5G 기준으로 통일
 export const responsiveFontSize = {
-  xs: { phone: 10, tablet: 11, desktop: 12 },
-  sm: { phone: 12, tablet: 13, desktop: 14 },
-  base: { phone: 14, tablet: 15, desktop: 16 },
-  lg: { phone: 15, tablet: 16, desktop: 18 },
-  xl: { phone: 17, tablet: 18, desktop: 20 },
+  xs: { phone: 12, tablet: 11, desktop: 12 },
+  sm: { phone: 14, tablet: 13, desktop: 14 },
+  base: { phone: 16, tablet: 15, desktop: 16 },
+  lg: { phone: 18, tablet: 16, desktop: 18 },
+  xl: { phone: 20, tablet: 18, desktop: 20 },
   '2xl': { phone: 20, tablet: 22, desktop: 24 },
   '3xl': { phone: 25, tablet: 27, desktop: 30 },
   '4xl': { phone: 30, tablet: 33, desktop: 36 }
 };
 
-// 세밀한 반응형 폰트 크기 (모든 화면 크기 대응)
+// 세밀한 반응형 폰트 크기 - Galaxy S20 5G 기준으로 통일 (모든 폰에서 동일)
 export const detailedResponsiveFontSize = {
   xs: { 
-    phoneSmall: 9, phoneMedium: 9.6, phoneLarge: 10.2, phoneXLarge: 10.6,
+    phoneSmall: 12, phoneMedium: 12, phoneLarge: 12, phoneXLarge: 12,
     tabletSmall: 10.8, tabletMedium: 11, tabletLarge: 11.4, tabletXLarge: 11.6,
     desktopSmall: 12, desktopMedium: 12.6, desktopLarge: 13.2
   },
   sm: { 
-    phoneSmall: 10.5, phoneMedium: 11.2, phoneLarge: 11.9, phoneXLarge: 12.3,
+    phoneSmall: 14, phoneMedium: 14, phoneLarge: 14, phoneXLarge: 14,
     tabletSmall: 12.6, tabletMedium: 12.9, tabletLarge: 13.3, tabletXLarge: 13.6,
     desktopSmall: 14, desktopMedium: 14.7, desktopLarge: 15.4
   },
   base: { 
-    phoneSmall: 12, phoneMedium: 12.8, phoneLarge: 13.6, phoneXLarge: 14.1,
+    phoneSmall: 16, phoneMedium: 16, phoneLarge: 16, phoneXLarge: 16,
     tabletSmall: 14.4, tabletMedium: 14.7, tabletLarge: 15.2, tabletXLarge: 15.5,
     desktopSmall: 16, desktopMedium: 16.8, desktopLarge: 17.6
   },
   lg: { 
-    phoneSmall: 13.5, phoneMedium: 14.4, phoneLarge: 15.3, phoneXLarge: 15.8,
+    phoneSmall: 18, phoneMedium: 18, phoneLarge: 18, phoneXLarge: 18,
     tabletSmall: 16.2, tabletMedium: 16.6, tabletLarge: 17.1, tabletXLarge: 17.5,
     desktopSmall: 18, desktopMedium: 18.9, desktopLarge: 19.8
   },
   xl: { 
-    phoneSmall: 15, phoneMedium: 16, phoneLarge: 17, phoneXLarge: 17.6,
+    phoneSmall: 20, phoneMedium: 20, phoneLarge: 20, phoneXLarge: 20,
     tabletSmall: 18, tabletMedium: 18.4, tabletLarge: 19, tabletXLarge: 19.4,
     desktopSmall: 20, desktopMedium: 21, desktopLarge: 22
   },
   '2xl': { 
-    phoneSmall: 18, phoneMedium: 19.2, phoneLarge: 20.4, phoneXLarge: 21.1,
+    phoneSmall: 24, phoneMedium: 24, phoneLarge: 24, phoneXLarge: 24,
     tabletSmall: 21.6, tabletMedium: 22.1, tabletLarge: 22.8, tabletXLarge: 23.3,
     desktopSmall: 24, desktopMedium: 25.2, desktopLarge: 26.4
   },
   '3xl': { 
-    phoneSmall: 22.5, phoneMedium: 24, phoneLarge: 25.5, phoneXLarge: 26.4,
+    phoneSmall: 30, phoneMedium: 30, phoneLarge: 30, phoneXLarge: 30,
     tabletSmall: 27, tabletMedium: 27.6, tabletLarge: 28.5, tabletXLarge: 29.1,
     desktopSmall: 30, desktopMedium: 31.5, desktopLarge: 33
   },
   '4xl': { 
-    phoneSmall: 27, phoneMedium: 28.8, phoneLarge: 30.6, phoneXLarge: 31.7,
+    phoneSmall: 36, phoneMedium: 36, phoneLarge: 36, phoneXLarge: 36,
     tabletSmall: 32.4, tabletMedium: 33.1, tabletLarge: 34.2, tabletXLarge: 34.9,
     desktopSmall: 36, desktopMedium: 37.8, desktopLarge: 39.6
   }

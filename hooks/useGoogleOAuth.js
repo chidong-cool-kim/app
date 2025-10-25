@@ -14,11 +14,10 @@ export const useGoogleOAuth = () => {
   const [error, setError] = useState(null);
 
   // Google OAuth 요청 설정
+  // Expo Go에서는 webClientId만 사용
   const [request, response, promptAsync] = Google.useAuthRequest({
-    androidClientId: GOOGLE_OAUTH_CONFIG.androidClientId,
-    iosClientId: GOOGLE_OAUTH_CONFIG.iosClientId,
-    webClientId: GOOGLE_OAUTH_CONFIG.webClientId,
-    expoClientId: GOOGLE_OAUTH_CONFIG.expoClientId,
+    clientId: GOOGLE_OAUTH_CONFIG.webClientId,
+    scopes: ['openid', 'profile', 'email'],
   });
 
   // OAuth 응답 처리

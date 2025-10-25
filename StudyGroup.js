@@ -12,6 +12,7 @@ import {
   FlatList,
   RefreshControl,
   Dimensions,
+  Platform,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -320,7 +321,7 @@ export default function StudyGroup() {
 
   return (
     <OrientationGuard screenName="스터디그룹">
-    <SafeAreaView style={[styles.container, responsiveStyles.container]}>
+    <View style={[styles.container, responsiveStyles.container]}>
       <MiniTimer />
       {/* 헤더 */}
       <View style={[styles.header, responsiveStyles.header]}>
@@ -497,7 +498,7 @@ export default function StudyGroup() {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </View>
     </OrientationGuard>
   );
 }
@@ -842,11 +843,16 @@ const phoneStyles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    paddingTop: Platform.OS === 'ios' ? 64 : 48, // 모바일 전용 Safe Area: iOS 50+14, Android 34+14
     backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e9ecef',
+    borderBottomWidth: 0,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 3,
   },
   backBtn: {
     fontSize: 14,
@@ -1047,7 +1053,7 @@ const getResponsiveStylesForStudyGroup = () => {
   // 더 작은 핸드폰 (width < 360)
   if (width < 360) {
     return {
-      header: { paddingHorizontal: 14, paddingVertical: 10 },
+      header: { paddingHorizontal: 14, paddingVertical: 10, paddingTop: Platform.OS === 'ios' ? 64 : 48 },
       backBtn: { fontSize: 13 },
       title: { fontSize: 15 },
       createBtn: { fontSize: 13 },

@@ -454,6 +454,154 @@ router.delete('/:groupId', authenticateByEmail, async (req, res) => {
     }
 });
 
+// GET /api/study-groups/:groupId/invite-link - 초대 링크 생성
+router.get('/:groupId/invite-link', authenticateByEmail, async (req, res) => {
+    try {
+        const { groupId } = req.params;
+
+        const group = await StudyGroup.findById(groupId);
+        if (!group || !group.isActive) {
+            return res.status(404).json({
+                success: false,
+                error: '스터디그룹을 찾을 수 없습니다.'
+            });
+        }
+
+        // 멤버인지 확인
+        const isMember = group.members.some(
+            member => member.user.toString() === req.user._id.toString()
+        );
+
+        if (!isMember) {
+            return res.status(403).json({
+                success: false,
+                error: '그룹 멤버만 초대 링크를 생성할 수 있습니다.'
+            });
+        }
+
+        // 초대 링크 생성 (Deep Link와 Web Link 모두 제공)
+        const deepLink = `myapp://invite/studygroup/${groupId}`;
+        const webLink = `https://myapp.com/invite/studygroup/${groupId}`;
+        
+        res.json({
+            success: true,
+            inviteLink: {
+                deepLink,
+                webLink,
+                groupId: group._id,
+                groupName: group.name
+            }
+        });
+
+    } catch (error) {
+        console.error('초대 링크 생성 오류:', error);
+        res.status(500).json({
+            success: false,
+            error: '초대 링크 생성에 실패했습니다.'
+        });
+    }
+});
+
+// GET /api/study-groups/invite/:groupId - 초대 링크로 그룹 정보 조회 (인증 불필요)
+router.get('/invite/:groupId', async (req, res) => {
+    try {
+        const { groupId } = req.params;
+
+        const group = await StudyGroup.findById(groupId)
+            .populate('creator', 'name email username');
+
+        if (!group || !group.isActive) {
+            return res.status(404).json({
+                success: false,
+                error: '스터디그룹을 찾을 수 없습니다.'
+            });
+        }
+
+        // 공개 그룹 정보만 반환
+        res.json({
+            success: true,
+            group: {
+                _id: group._id,
+                name: group.name,
+                description: group.description,
+                subject: group.subject,
+                creator: group.creator,
+                maxMembers: group.maxMembers,
+                currentMembers: group.currentMembers,
+                isPublic: group.isPublic,
+                createdAt: group.createdAt
+            }
+        });
+
+    } catch (error) {
+        console.error('초대 그룹 정보 조회 오류:', error);
+        res.status(500).json({
+            success: false,
+            error: '그룹 정보 조회에 실패했습니다.'
+        });
+    }
+});
+
+// POST /api/study-groups/invite/:groupId/accept - 초대 링크로 그룹 가입
+router.post('/invite/:groupId/accept', authenticateByEmail, async (req, res) => {
+    try {
+        const { groupId } = req.params;
+
+        const group = await StudyGroup.findById(groupId);
+        if (!group || !group.isActive) {
+            return res.status(404).json({
+                success: false,
+                error: '스터디그룹을 찾을 수 없습니다.'
+            });
+        }
+
+        // 이미 참여한 멤버인지 확인
+        const isAlreadyMember = group.members.some(
+            member => member.user.toString() === req.user._id.toString()
+        );
+
+        if (isAlreadyMember) {
+            return res.status(400).json({
+                success: false,
+                error: '이미 참여한 스터디그룹입니다.'
+            });
+        }
+
+        // 정원 확인
+        if (group.currentMembers >= group.maxMembers) {
+            return res.status(400).json({
+                success: false,
+                error: '스터디그룹 정원이 가득찼습니다.'
+            });
+        }
+
+        // 멤버 추가
+        group.members.push({
+            user: req.user._id,
+            role: 'member'
+        });
+        group.currentMembers += 1;
+
+        await group.save();
+
+        res.json({
+            success: true,
+            message: '스터디그룹에 참여했습니다.',
+            group: {
+                _id: group._id,
+                name: group.name
+            }
+        });
+
+    } catch (error) {
+        console.error('초대 수락 오류:', error);
+        res.status(500).json({
+            success: false,
+            error: '스터디그룹 참여에 실패했습니다.'
+        });
+    }
+});
+
 // GET /api/study-groups/:id/members/status - 스터디그룹 멤버 온라인 상태 조회
 router.get('/:id/members/status', authenticateByEmail, async (req, res) => {
     try {

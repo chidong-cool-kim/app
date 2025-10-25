@@ -18,9 +18,10 @@ import * as ImagePicker from 'expo-image-picker';
 import userDataService from './userDataService';
 import { useResponsive } from './hooks/useResponsive';
 import OrientationLock from './components/OrientationLock';
+import { API_BASE_URL } from './config/api';
 
 const { width: screenWidth } = Dimensions.get('window');
-const BACKEND_URL = 'http://192.168.45.53:5000';
+const BACKEND_URL = API_BASE_URL;
 
 export default function ExamAnswers() {
   const navigation = useNavigation();

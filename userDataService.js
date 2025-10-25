@@ -1,6 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { API_BASE_URL } from './config/api';
+import { checkLimit, getLimitMessage, getUpgradeMessage, getUserPlan } from './utils/subscriptionLimits';
 
-const BASE_URL = 'http://192.168.45.53:5000/api';
+const BASE_URL = `${API_BASE_URL}/api`;
 
 class UserDataService {
     constructor() {
@@ -37,8 +39,8 @@ class UserDataService {
 
             // 프로필 이미지 URL을 완전한 URL로 변환
             if (data.data && data.data.user && data.data.user.profileImage) {
-                if (data.data.user.profileImage.startsWith('/uploads/')) {
-                    data.data.user.profileImage = `http://192.168.45.53:5000${data.data.user.profileImage}`;
+                if (data.data.user.profileImage.startsWith('/uploads')) {
+                    data.data.user.profileImage = `${API_BASE_URL}${data.data.user.profileImage.replace('uploadss', 'uploads')}`;
                 }
             }
 
@@ -60,6 +62,64 @@ class UserDataService {
             }
 
             console.log('👤 [UserDataService] 현재 사용자:', user.email);
+
+            // 서버에서 최신 사용자 데이터 가져오기
+            const userData = await this.getUserData();
+            const serverUser = userData.user;
+
+            // 노트 타입 판별 (그림 노트인지 텍스트 노트인지)
+            let isDrawingNote = false;
+            try {
+                const parsedContent = JSON.parse(content);
+                if (parsedContent.paths || parsedContent.type === 'drawing') {
+                    isDrawingNote = true;
+                }
+            } catch (e) {
+                // JSON 파싱 실패 = 텍스트 노트
+                isDrawingNote = false;
+            }
+
+            // 현재 노트 개수 확인 (서버 데이터 사용)
+            const allNotes = serverUser.notes || [];
+            const textNotes = allNotes.filter(note => {
+                try {
+                    const parsed = JSON.parse(note.content || '');
+                    return !(parsed.paths || parsed.type === 'drawing');
+                } catch {
+                    return true; // 파싱 실패 = 텍스트 노트
+                }
+            });
+
+            const drawingNotes = allNotes.filter(note => {
+                try {
+                    const parsed = JSON.parse(note.content || '');
+                    return parsed.paths || parsed.type === 'drawing';
+                } catch {
+                    return false;
+                }
+            });
+
+            console.log('📊 [UserDataService] 노트 개수:', {
+                total: allNotes.length,
+                text: textNotes.length,
+                drawing: drawingNotes.length,
+                isDrawingNote
+            });
+
+            // 구독 플랜별 제한 체크 - 전체 노트 개수(텍스트+그림) 합산
+            const plan = getUserPlan(user);
+            const totalNotes = allNotes.length;
+            
+            // 전체 노트 개수 제한 체크 (텍스트 + 그림 합산)
+            const totalLimitCheck = checkLimit(user, 'notesTotal', totalNotes);
+            if (!totalLimitCheck.canCreate) {
+                const error = new Error(getLimitMessage('notesTotal', plan));
+                error.limitReached = true;
+                error.noteType = isDrawingNote ? 'drawing' : 'text';
+                error.currentPlan = plan;
+                error.upgradeMessage = getUpgradeMessage(plan);
+                throw error;
+            }
 
             const requestBody = {
                 email: user.email,
@@ -100,6 +160,13 @@ class UserDataService {
             if (!user) {
                 throw new Error('로그인이 필요합니다.');
             }
+
+            console.log('📝 [userDataService] updateNote 호출:', {
+                noteId,
+                title,
+                content,
+                contentLength: content?.length || 0
+            });
 
             const response = await fetch(`${BASE_URL}/notes/${noteId}`, {
                 method: 'PUT',
@@ -173,6 +240,36 @@ class UserDataService {
             return data.note;
         } catch (error) {
             console.error('노트 조회 오류:', error);
+            throw error;
+        }
+    }
+
+    // 게시글 조회
+    async getPosts() {
+        try {
+            const user = await this.getCurrentUser();
+            if (!user) {
+                throw new Error('로그인이 필요합니다.');
+            }
+
+            const response = await fetch(`${BASE_URL}/community/posts`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${user.email}`,
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || '게시글을 불러오는데 실패했습니다.');
+            }
+
+            return data.posts;
+        } catch (error) {
+            console.error('게시글 로드 오류:', error);
             throw error;
         }
     }
@@ -358,8 +455,8 @@ class UserDataService {
             if (userData && userData.user) {
                 // 프로필 이미지 URL을 완전한 URL로 변환
                 let profileImageUrl = userData.user.profileImage;
-                if (profileImageUrl && profileImageUrl.startsWith('/uploads/')) {
-                    profileImageUrl = `http://192.168.45.53:5000${profileImageUrl}`;
+                if (profileImageUrl && profileImageUrl.startsWith('/uploads')) {
+                    profileImageUrl = `${API_BASE_URL}${profileImageUrl.replace('uploadss', 'uploads')}`;
                 }
                 
                 const updatedUser = {

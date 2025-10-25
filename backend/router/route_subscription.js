@@ -2,6 +2,38 @@ const express = require('express');
 const router = express.Router();
 const User = require('../db/userSchema');
 
+// 구독 만료 체크 함수
+async function checkExpiredSubscriptions() {
+    try {
+        const now = new Date();
+        
+        // 활성 구독 중 만료된 것들 찾기
+        const expiredUsers = await User.find({
+            'subscription.isActive': true,
+            'subscription.endDate': { $lt: now }
+        });
+
+        if (expiredUsers.length > 0) {
+            console.log(`만료된 구독 ${expiredUsers.length}개 발견`);
+            
+            for (const user of expiredUsers) {
+                user.subscription.isActive = false;
+                user.subscription.updatedAt = new Date();
+                await user.save();
+                console.log(`구독 만료 처리: ${user.email}`);
+            }
+        }
+    } catch (error) {
+        console.error('구독 만료 체크 오류:', error);
+    }
+}
+
+// 매 시간마다 구독 만료 체크 (1시간 = 3600000ms)
+setInterval(checkExpiredSubscriptions, 3600000);
+
+// 서버 시작 시 즉시 한 번 실행
+checkExpiredSubscriptions();
+
 // 구독 정보 업데이트
 router.post('/subscription', async (req, res) => {
     try {
@@ -70,7 +102,7 @@ router.post('/subscription', async (req, res) => {
     }
 });
 
-// 구독 정보 조회
+// 구독 정보 조회 (만료 체크 포함)
 router.get('/subscription/:email', async (req, res) => {
     try {
         const { email } = req.params;
@@ -81,6 +113,21 @@ router.get('/subscription/:email', async (req, res) => {
                 success: false,
                 message: '사용자를 찾을 수 없습니다.'
             });
+        }
+
+        // 구독 만료 체크
+        if (user.subscription && user.subscription.isActive) {
+            const now = new Date();
+            const endDate = new Date(user.subscription.endDate);
+            
+            // 만료되었으면 isActive를 false로 변경
+            if (endDate < now) {
+                user.subscription.isActive = false;
+                user.subscription.updatedAt = new Date();
+                await user.save();
+                
+                console.log(`구독 만료: ${email}, 만료일: ${endDate}`);
+            }
         }
 
         res.json({

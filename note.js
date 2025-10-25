@@ -189,9 +189,9 @@ const Note = () => {
 
   const canvasPanResponder = PanResponder.create({
     onStartShouldSetPanResponder: () => true,
-    onStartShouldSetPanResponderCapture: () => true,
+    onStartShouldSetPanResponderCapture: () => screenInfo.isPhone, // 모바일에서만 캡처 우선순위
     onMoveShouldSetPanResponder: () => true,
-    onMoveShouldSetPanResponderCapture: () => true,
+    onMoveShouldSetPanResponderCapture: () => screenInfo.isPhone, // 모바일에서만 캡처 우선순위
 
     onPanResponderGrant: (evt) => {
       const touches = evt.nativeEvent.touches;
@@ -557,7 +557,23 @@ const Note = () => {
       }
     } catch (error) {
       console.error('❌ [Note] 저장 실패:', error);
-      Alert.alert('저장 실패', '노트 저장 중 오류가 발생했습니다.');
+      
+      // 제한 도달 에러 처리
+      if (error.limitReached) {
+        const planName = error.currentPlan === 'free' ? '무료' : 
+                        error.currentPlan === 'basic' ? '베이직' : '프리미엄';
+        
+        Alert.alert(
+          '노트 개수 제한',
+          `${error.message}\n\n현재 플랜: ${planName}\n\n더 많은 노트를 생성하려면 스토어에서 플랜을 업그레이드하세요.`,
+          [
+            { text: '취소', style: 'cancel' },
+            { text: '스토어로 이동', onPress: () => navigation.navigate('Store') }
+          ]
+        );
+      } else {
+        Alert.alert('저장 실패', error.message || '노트 저장 중 오류가 발생했습니다.');
+      }
     } finally {
       setIsSaving(false);
     }
@@ -582,6 +598,35 @@ const Note = () => {
     () => responsiveUtil.applyAll(baseStyles), 
     [responsiveUtil]
   );
+
+  // 모바일에서는 그림 노트 차단
+  if (screenInfo.isPhone) {
+    return (
+      <OrientationLock isNoteScreen={false}>
+        <View style={styles.container}>
+          <View style={styles.header}>
+            <TouchableOpacity onPress={() => navigation.goBack()}>
+              <Text style={styles.backBtn}>←</Text>
+            </TouchableOpacity>
+            <Text style={styles.title}>그림 노트</Text>
+            <View style={{ width: 40 }} />
+          </View>
+          <View style={styles.tabletOnlyContainer}>
+            <Text style={styles.tabletOnlyIcon}>📱🚫</Text>
+            <Text style={styles.tabletOnlyTitle}>태블릿 전용 기능</Text>
+            <Text style={styles.tabletOnlyMessage}>
+              그림 노트는 태블릿에서만{"\n"}
+              사용 가능합니다.
+            </Text>
+            <Text style={styles.tabletOnlyHint}>
+              글 노트는 모바일에서도{"\n"}
+              사용하실 수 있습니다.
+            </Text>
+          </View>
+        </View>
+      </OrientationLock>
+    );
+  }
 
   return (
   <OrientationLock isNoteScreen={true}>
@@ -957,6 +1002,11 @@ const baseStyles = StyleSheet.create({
   layerActions: { flexDirection: 'row', backgroundColor: '#FFF', paddingHorizontal: 3, paddingVertical: 3, borderTopWidth: 1, borderTopColor: '#E5E7EB' },
   layerActionBtn: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 4, borderRadius: 4, marginHorizontal: 1 },
   layerActionIcon: { fontSize: 14 },
+  tabletOnlyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 },
+  tabletOnlyIcon: { fontSize: 80, marginBottom: 20 },
+  tabletOnlyTitle: { fontSize: 24, fontWeight: '700', color: '#000', marginBottom: 12, textAlign: 'center' },
+  tabletOnlyMessage: { fontSize: 16, color: '#666', textAlign: 'center', lineHeight: 24, marginBottom: 20 },
+  tabletOnlyHint: { fontSize: 14, color: '#999', textAlign: 'center', lineHeight: 20 },
 });
 
 const phoneStyles = StyleSheet.create({
@@ -1109,8 +1159,10 @@ const phoneStyles = StyleSheet.create({
   },
   layerModal: {
     position: 'absolute',
-    bottom: 60,
-    right: 16,
+    top: '50%',
+    left: '50%',
+    marginTop: -140,
+    marginLeft: -100,
     width: 200,
     height: 280,
     backgroundColor: '#FFF',

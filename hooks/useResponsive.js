@@ -29,7 +29,7 @@ export function useResponsive() {
       spacing: (size) => size,
       fontSize: (size) => size,
       apply: (style) => style,
-      applyAll: (styles) => styles,
+      applyAll: (styles) => ({}),
       scale: (value) => value,
       components: () => ({}),
       deviceType: 'phone',

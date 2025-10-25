@@ -10,6 +10,9 @@ import {
   ActivityIndicator,
   Image,
   Dimensions,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import OrientationGuard from './components/OrientationGuard';
@@ -68,28 +71,25 @@ export default function SignUp() {
             return;
         }
 
-        // 이미 가입된 이메일인지 확인
-        const existingUser = await database.getUserByEmail(email.trim().toLowerCase());
-        if (existingUser) {
-            Alert.alert('오류', '이미 가입된 이메일입니다.');
-            return;
-        }
-
         setIsLoading(true);
 
         try {
+            console.log('📧 인증코드 발송 시작:', email.trim().toLowerCase());
             const result = await emailService.sendVerificationCode(email.trim().toLowerCase());
+            console.log('📧 인증코드 발송 결과:', result);
             
             if (result.success) {
                 setIsCodeSent(true);
                 setTimer(300); // 5분 타이머
                 Alert.alert('성공', 'Gmail로 인증코드가 전송되었습니다.\n메일함을 확인해주세요.');
             } else {
+                console.error('❌ 인증코드 발송 실패:', result.error);
                 throw new Error(result.error || '인증코드 전송에 실패했습니다.');
             }
         } catch (error) {
-            console.error('인증코드 전송 오류:', error);
-            Alert.alert('오류', `인증코드 전송에 실패했습니다.\n${error.message}`);
+            console.error('❌ 인증코드 전송 오류:', error);
+            console.error('❌ 에러 상세:', JSON.stringify(error, null, 2));
+            Alert.alert('오류', `인증코드 전송에 실패했습니다.\n\n상세: ${error.message}`);
         } finally {
             setIsLoading(false);
         }
@@ -171,28 +171,54 @@ export default function SignUp() {
             const userData = {
                 name: name.trim(),
                 email: email.trim().toLowerCase(),
-                password: password, // 실제로는 해시화해야 함
+                password: password,
                 provider: 'email',
                 providerId: email.trim().toLowerCase(),
             };
 
-            const newUser = await database.createUser(userData);
+            // 서버 API 호출
+            console.log('🔐 회원가입 API 호출 시작');
+            const response = await fetch('http://192.168.45.53:5000/api/signup/signup', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(userData),
+            });
+
+            console.log('🔐 회원가입 API 응답 상태:', response.status);
             
-            Alert.alert('성공', '회원가입이 완료되었습니다!\n닉네임을 설정해주세요.', [
-                {
-                    text: '닉네임 설정하기',
-                    onPress: () => {
-                        navigation.navigate('Username', { 
-                            userInfo: { 
-                                name: newUser.name, 
-                                email: newUser.email,
-                                id: newUser._id || newUser.id
-                            },
-                            fromSignup: true // 일반 회원가입에서 왔다는 표시
-                        });
+            const contentType = response.headers.get("content-type");
+            if (!contentType || !contentType.includes("application/json")) {
+                const text = await response.text();
+                console.error('❌ JSON이 아닌 응답:', text);
+                throw new Error('서버에서 올바른 응답을 받지 못했습니다.');
+            }
+            
+            const data = await response.json();
+            console.log('🔐 회원가입 API 응답 데이터:', data);
+
+            if (!response.ok) {
+                throw new Error(data.message || '회원가입에 실패했습니다.');
+            }
+
+            if (data.success) {
+                Alert.alert('성공', '회원가입이 완료되었습니다!\n닉네임을 설정해주세요.', [
+                    {
+                        text: '닉네임 설정하기',
+                        onPress: () => {
+                            navigation.navigate('Username', { 
+                                userInfo: { 
+                                    name: data.user.name, 
+                                    email: data.user.email,
+                                    id: data.user.id
+                                },
+                                fromSignup: true
+                            });
+                        }
                     }
-                }
-            ]);
+                ]);
+            }
         } catch (error) {
             console.error('회원가입 오류:', error);
             Alert.alert('오류', `회원가입에 실패했습니다.\n${error.message}`);
@@ -269,6 +295,16 @@ export default function SignUp() {
     return (
         <OrientationGuard screenName="회원가입" allowLandscape={false}>
             <SafeAreaView style={[styles.safeArea, responsiveStyles.safeArea]}>
+            <KeyboardAvoidingView 
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                style={{ flex: 1 }}
+                keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+            >
+            <ScrollView 
+                contentContainerStyle={{ flexGrow: 1 }}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+            >
             {/* 상단 바 - 모바일에서 숨김 */}
             {!screenInfo.isPhone && (
                 <View style={styles.position1}>
@@ -276,7 +312,7 @@ export default function SignUp() {
                 </View>
             )}
             
-            <View style={[styles.position2, screenInfo.isPhone && responsiveStyles.container]}>
+            <View style={[styles.position2, screenInfo.isPhone && responsiveStyles.container, screenInfo.isPhone && { paddingTop: 40 }]}>
                 {/* 로고 영역 - 모바일에서 숨김 */}
                 {!screenInfo.isPhone && (
                     <>
@@ -418,6 +454,8 @@ export default function SignUp() {
                     <View style={styles.hr}></View>
                 </View>
             )}
+            </ScrollView>
+            </KeyboardAvoidingView>
             </SafeAreaView>
         </OrientationGuard>
     );

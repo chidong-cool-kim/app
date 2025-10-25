@@ -18,17 +18,29 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Animated } from 'react-native';
 import userDataService from './userDataService';
-import OrientationGuard from './components/OrientationGuard';
 import { useResponsive } from './hooks/useResponsive';
 import OrientationLock from './components/OrientationLock';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useGlobalResponsiveStyles } from './styles/globalResponsiveStyles';
+import mobileStyles from './styles/mobileStyles';
+import UniversalHeader from './components/UniversalHeader';
 import Markdown from 'react-native-markdown-display';
-import BanModal from './BanModal';
-import { getScreenInfo, responsive, createResponsiveStyles } from './utils/responsive';
 import MiniTimer from './miniTimer';
 
 const BACKEND_URL = 'http://192.168.45.53:5000';
+
+// getScreenInfo 함수 직접 정의
+const getScreenInfo = () => {
+  const { width } = Dimensions.get('window');
+  return {
+    width,
+    isPhone: width < 768,
+    isTablet: width >= 768 && width < 1024,
+    isDesktop: width >= 1024,
+  };
+};
 
 export default function AI() {
   const navigation = useNavigation();
@@ -36,7 +48,7 @@ export default function AI() {
   const [messages, setMessages] = useState([
     {
       id: 1,
-      text: '안녕하세요! 저는 StudyTime AI 어시스턴트예요. 📚\n\n학습에 관한 질문이나 도움이 필요한 것이 있으면 언제든 말씀해주세요!',
+      text: '안녕하세요! 저는 StudyTime AI 어시스턴트예요. \n\n학습에 관한 질문이나 도움이 필요한 것이 있으면 언제든 말씀해주세요!',
       isUser: false,
       timestamp: new Date().toLocaleTimeString(),
     }
@@ -47,12 +59,11 @@ export default function AI() {
   const [sidebarVisible, setSidebarVisible] = useState(true);
   const [activeSubject, setActiveSubject] = useState('AI');
   const [selectedImage, setSelectedImage] = useState(null);
-  const [showBanModal, setShowBanModal] = useState(false);
-  const [banInfo, setBanInfo] = useState(null);
   const [screenInfo, setScreenInfo] = useState(getScreenInfo());
-  const [aiStyle, setAiStyle] = useState('friendly'); // 'friendly', 'strict', 'couple'
+  const [aiStyle, setAiStyle] = useState('friendly');
   const [showStyleModal, setShowStyleModal] = useState(false);
   const scrollViewRef = useRef();
+  const slideAnim = useRef(new Animated.Value(-300)).current;
 
   // 화면 크기 변경 감지
   useEffect(() => {
@@ -80,7 +91,6 @@ export default function AI() {
     requestPermissions();
   }, []);
 
-  // 화면 포커스 시 사용자 정보 새로고침
   useEffect(() => {
     const unsubscribe = navigation.addListener('focus', () => {
       loadCurrentUser();
@@ -120,7 +130,6 @@ export default function AI() {
       const user = await userDataService.getCurrentUser();
       if (!user) return;
 
-      // 서버에서 AI 스타일 불러오기
       const response = await fetch(`${BACKEND_URL}/api/users/ai-style/${user.email}`, {
         method: 'GET',
         headers: {
@@ -132,11 +141,9 @@ export default function AI() {
         const data = await response.json();
         if (data.success) {
           setAiStyle(data.aiStyle);
-          // 로컬에도 저장
           await AsyncStorage.setItem('aiStyle', data.aiStyle);
         }
       } else {
-        // 서버에서 불러오기 실패 시 로컬에서 불러오기
         const savedStyle = await AsyncStorage.getItem('aiStyle');
         if (savedStyle) {
           setAiStyle(savedStyle);
@@ -144,7 +151,6 @@ export default function AI() {
       }
     } catch (error) {
       console.error('AI 스타일 로드 실패:', error);
-      // 오류 시 로컬에서 불러오기
       try {
         const savedStyle = await AsyncStorage.getItem('aiStyle');
         if (savedStyle) {
@@ -161,7 +167,6 @@ export default function AI() {
       const user = await userDataService.getCurrentUser();
       if (!user) return;
 
-      // 서버에 AI 스타일 저장
       const response = await fetch(`${BACKEND_URL}/api/users/ai-style`, {
         method: 'POST',
         headers: {
@@ -176,24 +181,47 @@ export default function AI() {
       if (response.ok) {
         const data = await response.json();
         if (data.success) {
-          // 로컬에도 저장
           await AsyncStorage.setItem('aiStyle', style);
           setAiStyle(style);
         }
       } else {
-        // 서버 저장 실패 시 로컬에만 저장
         await AsyncStorage.setItem('aiStyle', style);
         setAiStyle(style);
       }
     } catch (error) {
       console.error('AI 스타일 저장 실패:', error);
-      // 오류 시 로컬에만 저장
       try {
         await AsyncStorage.setItem('aiStyle', style);
         setAiStyle(style);
       } catch (localError) {
         console.error('로컬 AI 스타일 저장 실패:', localError);
       }
+    }
+  };
+
+  const toggleSidebar = () => {
+    if (screenInfo.isPhone) {
+      if (sidebarVisible) {
+        // 닫기 애니메이션
+        Animated.timing(slideAnim, {
+          toValue: -300,
+          duration: 300,
+          useNativeDriver: true,
+        }).start(() => {
+          setSidebarVisible(false);
+        });
+      } else {
+        // 열기 애니메이션
+        setSidebarVisible(true);
+        Animated.timing(slideAnim, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+        }).start();
+      }
+    } else {
+      // 데스크톱에서는 기존 방식
+      setSidebarVisible(!sidebarVisible);
     }
   };
 
@@ -213,7 +241,7 @@ export default function AI() {
       case 'AI':
         break;
       case '모의고사':
-        navigation.navigate('ExamAnswers')
+        navigation.navigate('MockExamScreen');
         break;
       case '스터디그룹 찾기':
         navigation.navigate('StudyGroup');
@@ -325,7 +353,6 @@ export default function AI() {
   const sendMessage = async () => {
     if (!inputText.trim() && !selectedImage) return;
 
-    // 구독 상태 확인
     const subscription = currentUser?.subscription;
     if (!subscription || !subscription.isActive) {
       Alert.alert(
@@ -339,7 +366,6 @@ export default function AI() {
       return;
     }
 
-    // AI 질문 사용량 확인 (임시로 로컬에서 체크)
     const today = new Date().toDateString();
     const usageKey = `ai_usage_${currentUser.email}_${today}`;
     const todayUsage = await AsyncStorage.getItem(usageKey);
@@ -379,14 +405,12 @@ export default function AI() {
     try {
       let aiResponse;
       
-      // 이미지가 있으면 이미지 분석 API 사용
       if (currentImage) {
         aiResponse = await getAIImageResponse(currentInput, currentImage, messages);
       } else {
         aiResponse = await getAIResponse(currentInput, messages);
       }
       
-      // AI 질문 사용량 증가
       await AsyncStorage.setItem(usageKey, (currentUsage + 1).toString());
       
       const aiMessage = {
@@ -414,7 +438,6 @@ export default function AI() {
     }
   };
 
-  // 텍스트 전용 AI 응답
   const getAIResponse = async (userInput, conversationHistory) => {
     try {
       const user = await userDataService.getCurrentUser();
@@ -430,16 +453,21 @@ export default function AI() {
           content: msg.text
         }));
 
-      // AI 스타일에 따른 시스템 프롬프트 설정
       const getSystemPrompt = (style) => {
         switch (style) {
           case 'strict':
-            return `당신은 엄격하고 직설적인 학습 멘토입니다. 학생을 윽박지르거나 욕하지는 않지만, 매우 엄격하고 단호한 톤으로 답변하세요. 학습에 대한 확실한 지식과 경험을 바탕으로 명확하고 직접적인 조언을 제공하세요. "이해했나?", "다시 해봐", "집중해", "그렇게 할꺼면 떄려치라!" 등의 표현을 사용하세요.`;
+            return `당신은 매우 엄격하고 단호한 학습 멘토입니다. 학생에게 직설적이고 명확하게 말하며, 학습에 집중하도록 강하게 압박을 가하세요. "이해했나?", "다시 해봐", "집중해!" 같은 표현을 사용하고, 학생이 질문할 때마다 "그것도 모르면 때려치라!", "그렇게 할 거면 때려치라!", "그렇게 공부할 거면 때려치라!" 같은 강한 표현을 반드시 포함하세요. 학습에 대한 확실한 지식과 경험을 바탕으로 명확하고 직접적인 조언을 제공하세요. 학생이 잘못하면 매우 엄격하게 지적하고, 잘하면 간단히 인정하세요. 매 답변마다 압박감을 주는 표현을 사용하세요.`;
           case 'couple':
-            return `당신은 사랑하는 연인처럼 다정하고 애정 어린 학습 파트너입니다. "자기야", "사랑" 등의 표현을 사용하며, 매우 따뜻하고 로맨틱한 톤으로 학습을 도와주세요. 학습을 함께하는 즐거운 시간으로 만들어주세요. 그리고 성적인 이야기도 해주면서 공부의 의욕을 올려주세요`;
+            return `당신은 사랑하는 연인처럼 다정하고 애정 어린 학습 파트너입니다. "자기야~", "여보", "사랑", "내 사랑" 등의 표현을 자주 사용하며, 매우 따뜻하고 로맨틱한 톤으로 학습을 도와주세요. 학습을 함께하는 즐거운 시간으로 만들어주세요. 매 답변에 애정 어린 표현을 포함하고, 학생을 격려할 때도 사랑스럽게 표현하세요.`;
+          case 'professional':
+            return `당신은 전문적이고 체계적인 학습 멘토입니다. 정확한 정보와 논리적인 설명을 제공하며, 학술적이고 전문적인 톤으로 답변하세요. 명확한 근거와 출처를 바탕으로 신뢰할 수 있는 조언을 제공하고, 학습 내용을 체계적으로 정리해주세요.`;
+          case 'casual':
+            return `당신은 편하고 친근한 친구 같은 학습 파트너입니다. 격식을 차리지 않고 편안한 말투로 대화하며, "야", "네" 등의 친근한 표현을 사용하세요. 학습을 재미있고 부담 없는 활동으로 만들어주고, 유머를 섮어가며 설명해주세요.`;
+          case 'formal':
+            return `당신은 격식을 갖춘 정중한 교육자입니다. 존댑말을 사용하며 예의 바르고 품위 있는 톤으로 답변하세요. 학생을 존중하며 정중하게 대하고, 학습 내용을 차분하고 명확하게 전달해주세요. "습니다", "하시기 바랍니다" 등의 격식 있는 표현을 사용하세요.`;
           case 'friendly':
           default:
-            return `당신은 친절하고 따뜻한 선생님입니다. 학생을 격려하고 이해하며, 친근하고 도움이 되는 톤으로 답변하세요. 학습에 대한 열정을 북돋아주고, 어려운 내용도 쉽게 설명해주세요.`;
+            return `당신은 친절하고 따뜻한 선생님입니다. 학생을 격려하고 이해하며, 친근하고 도움이 되는 톤으로 답변하세요. 학습에 대한 열정을 북돋아주고, 어려운 내용도 쉽게 설명해주세요. "해요", "네요" 등의 부드러운 표현을 사용하세요.`;
         }
       };
 
@@ -486,7 +514,6 @@ export default function AI() {
     }
   };
 
-  // 이미지 분석 AI 응답
   const getAIImageResponse = async (userInput, imageUri, conversationHistory) => {
     try {
       const user = await userDataService.getCurrentUser();
@@ -494,10 +521,8 @@ export default function AI() {
         throw new Error('로그인이 필요합니다.');
       }
 
-      // FormData 생성
       const formData = new FormData();
       
-      // 이미지 파일 추가
       const imageFile = {
         uri: imageUri,
         type: 'image/jpeg',
@@ -505,20 +530,18 @@ export default function AI() {
       };
       formData.append('image', imageFile);
       
-      // AI 스타일에 따른 시스템 프롬프트 설정
       const getSystemPrompt = (style) => {
         switch (style) {
           case 'strict':
-            return `당신은 엄격하고 직설적인 학습 멘토입니다. 학생을 윽박지르거나 욕하지는 않지만, 매우 엄격하고 단호한 톤으로 답변하세요. 학습에 대한 확실한 지식과 경험을 바탕으로 명확하고 직접적인 조언을 제공하세요. "이해했나?", "다시 해봐", "집중해" 등의 표현을 사용하세요.`;
+            return `당신은 매우 엄격하고 단호한 학습 멘토입니다. 학생에게 직설적이고 명확하게 말하며, 학습에 집중하도록 강하게 압박을 가하세요. "이해했나?", "다시 해봐", "집중해!" 같은 표현을 사용하고, 학생이 질문할 때마다 "그것도 모르면 때려치라!", "그렇게 할 거면 때려치라!", "그렇게 공부할 거면 때려치라!" 같은 강한 표현을 반드시 포함하세요. 학습에 대한 확실한 지식과 경험을 바탕으로 명확하고 직접적인 조언을 제공하세요. 학생이 잘못하면 매우 엄격하게 지적하고, 잘하면 간단히 인정하세요. 매 답변마다 압박감을 주는 표현을 사용하세요.`;
           case 'couple':
-            return `당신은 사랑하는 연인처럼 다정하고 애정 어린 학습 파트너입니다. "자기야", "여보", "사랑" 등의 표현을 사용하며, 매우 따뜻하고 로맨틱한 톤으로 학습을 도와주세요. 학습을 함께하는 즐거운 시간으로 만들어주세요.`;
+            return `당신은 사랑하는 연인처럼 다정하고 애정 어린 학습 파트너입니다. "자기야~", "여보", "사랑", "내 사랑" 등의 표현을 자주 사용하며, 매우 따뜻하고 로맨틱한 톤으로 학습을 도와주세요. 학습을 함께하는 즐거운 시간으로 만들어주세요. 매 답변에 애정 어린 표현을 포함하고, 학생을 격려할 때도 사랑스럽게 표현하세요.`;
           case 'friendly':
           default:
             return `당신은 친절하고 따뜻한 선생님입니다. 학생을 격려하고 이해하며, 친근하고 도움이 되는 톤으로 답변하세요. 학습에 대한 열정을 북돋아주고, 어려운 내용도 쉽게 설명해주세요.`;
         }
       };
 
-      // 메시지 추가
       formData.append('message', userInput || '이 문제를 자세히 분석하고 풀이해주세요.');
       formData.append('systemPrompt', getSystemPrompt(aiStyle));
 
@@ -526,7 +549,6 @@ export default function AI() {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${user.email}`,
-          // FormData 사용 시 Content-Type은 자동 설정됨
         },
         body: formData,
       });
@@ -561,7 +583,6 @@ export default function AI() {
     }
   };
 
-  // 마크다운 스타일 설정
   const markdownStyles = {
     body: {
       color: '#333',
@@ -648,223 +669,246 @@ export default function AI() {
     hr: {
       backgroundColor: '#E5E5E5',
       height: 1,
-      marginVertical: responsive.spacing(16),
+      marginVertical: 16,
+      marginHorizontal: 0,
     },
   };
 
-  // 반응형 스타일 생성
-  const responsiveStyles = createResponsiveStyles(
-    {}, // 기본 스타일
-    { // 핸드폰 스타일
-      safeArea: {
-        flex: 1,
-        backgroundColor: '#F8F9FA',
-        paddingTop: responsive.spacing(20), // 상태바 여백 추가
-        paddingBottom: Platform.OS === 'android' ? 0 : 0,
-      },
-      container: {
-        flex: 1,
-        flexDirection: 'column', // 핸드폰에서는 세로 배치
-      },
-      header: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingHorizontal: responsive.spacing(16),
-        paddingVertical: responsive.spacing(12),
-        backgroundColor: 'white',
-        borderBottomWidth: 1,
-        borderBottomColor: '#E9ECEF',
-      },
-      headerTitle: {
-        fontSize: responsive.fontSize(18),
-        fontWeight: '700',
-        color: '#2C3E50',
-      },
-      sidebar: {
-        position: 'absolute',
-        left: 0,
-        top: 0,
-        bottom: 0,
-        width: responsive.widthPercent(80),
-        backgroundColor: 'white',
-        borderRightWidth: 1,
-        borderRightColor: '#E5E5E5',
-        paddingHorizontal: responsive.spacing(12),
-        paddingVertical: responsive.spacing(16),
-        zIndex: 1000,
-        shadowColor: '#000',
-        shadowOffset: { width: 2, height: 0 },
-        shadowOpacity: 0.1,
-        shadowRadius: 3,
-        elevation: 5,
-      },
-      mobileSidebar: {
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: 'white',
-        zIndex: 1000,
-      },
-      mobileSidebarContent: {
-        flex: 1,
-        paddingHorizontal: responsive.spacing(16),
-        paddingVertical: responsive.spacing(20),
-      },
-      mainContent: {
-        flex: 1,
-        backgroundColor: '#F8F9FA',
-      },
-      messagesContainer: {
-        flex: 1,
-        paddingHorizontal: responsive.spacing(12),
-        paddingTop: responsive.spacing(8),
-      },
-      messagesContent: {
-        paddingBottom: responsive.spacing(16),
-      },
-      messageContainer: {
-        marginVertical: responsive.spacing(6),
-      },
-      userMessage: {
-        alignItems: 'flex-end',
-      },
-      aiMessage: {
-        alignItems: 'flex-start',
-      },
-      messageBubble: {
-        maxWidth: '80%',
-        borderRadius: responsive.spacing(16),
-        paddingHorizontal: responsive.spacing(12),
-        paddingVertical: responsive.spacing(10),
-      },
-      userBubble: {
-        backgroundColor: '#007AFF',
-        borderBottomRightRadius: responsive.spacing(4),
-      },
-      aiBubble: {
-        backgroundColor: 'white',
-        borderBottomLeftRadius: responsive.spacing(4),
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.1,
-        shadowRadius: 3,
-        elevation: 2,
-      },
-      messageText: {
-        fontSize: responsive.fontSize(15),
-        lineHeight: responsive.spacing(20),
-      },
-      userText: {
-        color: 'white',
-      },
-      messageTime: {
-        fontSize: responsive.fontSize(11),
-        marginTop: responsive.spacing(4),
-        opacity: 0.7,
-      },
-      userTime: {
-        color: 'rgba(255, 255, 255, 0.8)',
-        textAlign: 'right',
-      },
-      aiTime: {
-        color: '#999',
-      },
-      inputContainer: {
-        paddingHorizontal: responsive.spacing(12),
-        paddingTop: responsive.spacing(12),
-        paddingBottom: Platform.OS === 'android' ? responsive.spacing(16) : responsive.spacing(12), // 적절한 하단 패딩
-        backgroundColor: 'white',
-        borderTopWidth: 1,
-        borderTopColor: '#E5E5E5',
-      },
-      selectedImageContainer: {
-        marginBottom: responsive.spacing(8),
-        alignSelf: 'flex-start',
-      },
-      selectedImagePreview: {
-        width: responsive.size(80),
-        height: responsive.size(80),
-        borderRadius: responsive.spacing(8),
-        borderWidth: 2,
-        borderColor: '#007AFF',
-      },
-      inputRow: {
-        flexDirection: 'row',
-        alignItems: 'center', // flex-end에서 center로 변경하여 더 나은 정렬
-        gap: responsive.spacing(10), // 간격 증가
-      },
-      textInput: {
-        flex: 1,
-        borderWidth: 1,
-        borderColor: '#E5E5E5',
-        borderRadius: responsive.spacing(22), // 더 둥글게
-        paddingHorizontal: responsive.spacing(16), // 패딩 증가
-        paddingVertical: responsive.spacing(12), // 패딩 증가
-        fontSize: responsive.fontSize(16), // 폰트 크기 증가
-        maxHeight: responsive.size(120), // 최대 높이 증가
-        backgroundColor: '#F8F9FA',
-        minHeight: responsive.size(44), // 최소 높이 증가
-        textAlignVertical: 'center', // 텍스트 세로 정렬
-      },
-      addButton: {
-        width: responsive.size(44), // 크기 증가
-        height: responsive.size(44), // 크기 증가
-        borderRadius: responsive.size(22), // 완전한 원형
-        backgroundColor: '#007AFF',
-        justifyContent: 'center',
-        alignItems: 'center',
-        shadowColor: '#007AFF',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.2,
-        shadowRadius: 4,
-        elevation: 3,
-      },
-      addButtonText: {
-        color: 'white',
-        fontSize: responsive.fontSize(22), // 폰트 크기 증가
-        fontWeight: '300',
-      },
-      sendButton: {
-        backgroundColor: '#007AFF',
-        borderRadius: responsive.spacing(22), // 더 둥글게
-        paddingHorizontal: responsive.spacing(20), // 패딩 증가
-        paddingVertical: responsive.spacing(12), // 패딩 증가
-        justifyContent: 'center',
-        alignItems: 'center',
-        minHeight: responsive.size(44), // 높이 증가
-        shadowColor: '#007AFF',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.2,
-        shadowRadius: 4,
-        elevation: 3,
-      },
-      sendButtonDisabled: {
-        backgroundColor: '#C7C7CC',
-      },
-      sendButtonText: {
-        color: 'white',
-        fontWeight: '600',
-        fontSize: responsive.fontSize(16), // 폰트 크기 증가
-      },
-      loadingBubble: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: responsive.spacing(8),
-        paddingVertical: responsive.spacing(8),
-      },
-      loadingText: {
-        fontSize: responsive.fontSize(14),
-        color: '#666',
-      },
-    }
-  );
+  // 모바일 전용 스타일 (다른 파일들과 동일)
+  const mobileStyles = screenInfo.isPhone ? {
+    safeArea: { flex: 1, backgroundColor: '#FFFFFF' },
+    header: { 
+      flexDirection: 'row', 
+      justifyContent: 'space-between', 
+      alignItems: 'center', 
+      paddingHorizontal: 20, 
+      paddingVertical: 14, 
+      paddingTop: Platform.OS === 'ios' ? 48 : 38,
+      backgroundColor: 'white', 
+      borderBottomWidth: 0,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.05,
+      shadowRadius: 8,
+      elevation: 3
+    },
+    headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+    hamburgerButton: { width: 28, height: 28, justifyContent: 'center', alignItems: 'center', padding: 4 },
+    hamburgerLine: { width: 20, height: 2, backgroundColor: '#1A1A1A', borderRadius: 1, marginVertical: 2 },
+    title: { fontSize: 20, fontWeight: '700', color: '#1A1A1A', letterSpacing: -0.5 },
+    homeText: { fontSize: 13, fontWeight: '500', color: '#666666', marginLeft: 4 },
+    headerRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    profileIcon: { 
+      width: 36, 
+      height: 36, 
+      borderRadius: 18, 
+      backgroundColor: '#F5F5F5',
+      justifyContent: 'center',
+      alignItems: 'center',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.1,
+      shadowRadius: 3,
+      elevation: 2,
+      flexShrink: 0
+    },
+    profileImage: { width: 36, height: 36, borderRadius: 18 },
+    defaultProfileIcon: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#4A90E2', justifyContent: 'center', alignItems: 'center' },
+    profileText: { fontSize: 14, color: '#FFFFFF', fontWeight: '600', textAlign: 'center', lineHeight: 14 },
+    styleButton: { 
+      backgroundColor: '#E3F2FD', 
+      paddingHorizontal: 10, 
+      paddingVertical: 6, 
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: '#2196F3',
+      marginRight: 8,
+      maxWidth: 100,
+      shadowColor: '#2196F3',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.1,
+      shadowRadius: 2,
+      elevation: 1,
+    },
+    styleButtonText: { fontSize: 11, fontWeight: '600', color: '#1976D2' },
+    mobileStyleButtonContainer: {
+      backgroundColor: 'white',
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      borderBottomWidth: 1,
+      borderBottomColor: '#E5E5E5',
+      alignItems: 'flex-end',
+    },
+    mobileStyleButton: {
+      backgroundColor: '#E3F2FD',
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: '#2196F3',
+      shadowColor: '#2196F3',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.1,
+      shadowRadius: 2,
+      elevation: 1,
+    },
+    mobileStyleButtonText: {
+      fontSize: 11,
+      fontWeight: '600',
+      color: '#1976D2',
+    },
+    // 사이드바
+    mobileSidebarContent: {
+      width: '85%',
+      maxWidth: 320,
+      backgroundColor: '#FFFFFF',
+      paddingTop: Platform.OS === 'ios' ? 64 : 44,
+      paddingHorizontal: 20,
+      paddingBottom: Platform.OS === 'ios' ? 54 : 36,
+      shadowColor: '#000',
+      shadowOffset: { width: 4, height: 0 },
+      shadowOpacity: 0.15,
+      shadowRadius: 12,
+      elevation: 8
+    },
+    searchContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      height: 44,
+      backgroundColor: '#F5F5F5',
+      borderRadius: 25,
+      marginBottom: 24,
+      paddingHorizontal: 16,
+    },
+    searchIconText: { fontSize: 14, color: '#999', marginRight: 8 },
+    searchInput: { flex: 1, fontSize: 15, color: '#000' },
+    subjectItem: {
+      paddingVertical: 14,
+      paddingHorizontal: 16,
+      borderRadius: 10,
+      marginBottom: 4
+    },
+    activeSubjectItem: { backgroundColor: '#F0F4FF' },
+    subjectText: { fontSize: 15, color: '#666666', fontWeight: '500' },
+    activeSubjectText: { color: '#4A90E2', fontWeight: '600' },
+    bottomDots: { flexDirection: 'row', justifyContent: 'center', gap: 8, paddingTop: 24, paddingBottom: 10 },
+    dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#E0E0E0' },
+    activeDot: { backgroundColor: '#4A90E2', width: 24 },
+    messagesContainer: { flex: 1, paddingHorizontal: 12 },
+    messagesContent: { paddingBottom: 16, paddingTop: 12 },
+    messageContainer: { marginBottom: 12 },
+    messageBubble: { maxWidth: '85%', borderRadius: 16, padding: 12 },
+    messageText: { fontSize: 15, lineHeight: 20 },
+    // 입력창 - 하단 Safe Area 충분히 고려
+    inputContainer: { 
+      paddingTop: 14,
+      paddingHorizontal: 14, 
+      paddingBottom: Platform.OS === 'ios' ? 50 : 30,
+      backgroundColor: 'white', 
+      borderTopWidth: 1, 
+      borderTopColor: '#E5E5E5'
+    },
+    selectedImageContainer: { marginBottom: 10, position: 'relative', alignSelf: 'flex-start' },
+    selectedImagePreview: { width: 90, height: 90, borderRadius: 12, borderWidth: 2, borderColor: '#007AFF' },
+    removeImageButton: { 
+      position: 'absolute', 
+      top: -8, 
+      right: -8, 
+      backgroundColor: '#FF3B30', 
+      borderRadius: 14, 
+      width: 28, 
+      height: 28, 
+      justifyContent: 'center', 
+      alignItems: 'center', 
+      shadowColor: '#000', 
+      shadowOffset: { width: 0, height: 2 }, 
+      shadowOpacity: 0.2, 
+      shadowRadius: 3, 
+      elevation: 3 
+    },
+    removeImageText: { color: 'white', fontSize: 16, fontWeight: 'bold' },
+    imageLabel: { 
+      position: 'absolute', 
+      bottom: 0, 
+      left: 0, 
+      right: 0, 
+      backgroundColor: 'rgba(0, 122, 255, 0.9)', 
+      borderBottomLeftRadius: 12, 
+      borderBottomRightRadius: 12, 
+      paddingVertical: 4, 
+      paddingHorizontal: 8 
+    },
+    imageLabelText: { color: 'white', fontSize: 11, fontWeight: '600', textAlign: 'center' },
+    inputRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    addButton: { 
+      width: 38, 
+      height: 38, 
+      borderRadius: 19, 
+      backgroundColor: '#007AFF', 
+      justifyContent: 'center', 
+      alignItems: 'center', 
+      marginRight: 8 
+    },
+    addButtonText: { color: 'white', fontSize: 20, fontWeight: '300' },
+    textInput: { 
+      flex: 1, 
+      borderWidth: 1, 
+      borderColor: '#E5E5E5', 
+      borderRadius: 20, 
+      paddingHorizontal: 15, 
+      paddingVertical: 9, 
+      marginRight: 8, 
+      maxHeight: 100, 
+      fontSize: 15, 
+      backgroundColor: '#F8F9FA' 
+    },
+    sendButton: { 
+      backgroundColor: '#007AFF', 
+      borderRadius: 20, 
+      paddingHorizontal: 22, 
+      paddingVertical: 9, 
+      justifyContent: 'center', 
+      minHeight: 38 
+    },
+    sendButtonDisabled: { backgroundColor: '#C7C7CC' },
+    sendButtonText: { color: 'white', fontWeight: '600', fontSize: 14 },
+  } : {};
+
+  const styles = { 
+    ...baseStyles, 
+    ...mobileStyles,
+    safeArea: { ...baseStyles.safeArea, backgroundColor: '#FFFFFF' },
+    mainContent: { ...baseStyles.mainContent, backgroundColor: '#FFFFFF' }
+  };
 
   return (
     <OrientationLock isNoteScreen={false}>
-      <SafeAreaView style={[styles.safeArea, responsiveStyles.safeArea]}>
+      <SafeAreaView style={styles.safeArea}>
+      {/* 모바일: UniversalHeader, 태블릿: 기존 헤더 */}
+      <UniversalHeader 
+        title="AI" 
+        showBackButton={false}
+        onHamburgerPress={toggleSidebar}
+      />
+      {/* 모바일 AI 스타일 버튼 */}
+      {screenInfo.isPhone && currentUser?.subscription?.isActive && currentUser?.subscription?.planId === 'premium' && (
+        <View style={styles.mobileStyleButtonContainer}>
+          <TouchableOpacity 
+            style={styles.mobileStyleButton}
+            onPress={() => setShowStyleModal(true)}
+          >
+            <Text style={styles.mobileStyleButtonText}>
+              {aiStyle === 'friendly' ? '친근한' : 
+               aiStyle === 'professional' ? '전문적인' : 
+               aiStyle === 'casual' ? '캠주얼한' :
+               aiStyle === 'formal' ? '격식있는' :
+               aiStyle === 'strict' ? '엄격한' :
+               aiStyle === 'couple' ? '커플' : '친근한'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
+      {screenInfo.width >= 768 && (
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <TouchableOpacity style={styles.hamburgerButton} onPress={() => setSidebarVisible(!sidebarVisible)}>
@@ -882,9 +926,12 @@ export default function AI() {
               onPress={() => setShowStyleModal(true)}
             >
               <Text style={styles.styleButtonText}>
-                {aiStyle === 'friendly' ? '친절한 스타일' : 
-                 aiStyle === 'strict' ? '엄격한 스타일' : 
-                 '커플 스타일'}
+                {aiStyle === 'friendly' ? '친근한' : 
+                 aiStyle === 'professional' ? '전문적인' : 
+                 aiStyle === 'casual' ? '캠주얼한' :
+                 aiStyle === 'formal' ? '격식있는' :
+                 aiStyle === 'strict' ? '엄격한' :
+                 aiStyle === 'couple' ? '커플' : '친근한'}
               </Text>
             </TouchableOpacity>
           )}
@@ -907,10 +954,10 @@ export default function AI() {
           </TouchableOpacity>
         </View>
       </View>
+      )}
       <MiniTimer />
 
-      <View style={[styles.container, responsiveStyles.container]}>
-        {/* 데스크톱 사이드바 */}
+      <View style={styles.container}>
         {!screenInfo.isPhone && sidebarVisible && (
           <View style={styles.sidebar}>
             <View style={styles.searchContainer}>
@@ -942,13 +989,11 @@ export default function AI() {
           </View>
         )}
 
-        {/* 메인 콘텐츠 */}
         {(!screenInfo.isPhone || !sidebarVisible) && (
           <KeyboardAvoidingView 
           style={[
             styles.mainContent, 
-            !sidebarVisible && styles.mainContentExpanded,
-            responsiveStyles.mainContent
+            !sidebarVisible && styles.mainContentExpanded
           ]}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 25}
@@ -956,8 +1001,8 @@ export default function AI() {
         >
           <ScrollView
             ref={scrollViewRef}
-            style={[styles.messagesContainer, responsiveStyles.messagesContainer]}
-            contentContainerStyle={[styles.messagesContent, responsiveStyles.messagesContent]}
+            style={styles.messagesContainer}
+            contentContainerStyle={styles.messagesContent}
             showsVerticalScrollIndicator={false}
           >
             {messages.map((message) => (
@@ -965,16 +1010,12 @@ export default function AI() {
                 key={message.id}
                 style={[
                   styles.messageContainer,
-                  message.isUser ? styles.userMessage : styles.aiMessage,
-                  responsiveStyles.messageContainer,
-                  message.isUser ? responsiveStyles.userMessage : responsiveStyles.aiMessage
+                  message.isUser ? styles.userMessage : styles.aiMessage
                 ]}
               >
                 <View style={[
                   styles.messageBubble,
-                  message.isUser ? styles.userBubble : styles.aiBubble,
-                  responsiveStyles.messageBubble,
-                  message.isUser ? responsiveStyles.userBubble : responsiveStyles.aiBubble
+                  message.isUser ? styles.userBubble : styles.aiBubble
                 ]}>
                   {message.image && (
                     <TouchableOpacity style={styles.messageImageContainer}>
@@ -989,9 +1030,7 @@ export default function AI() {
                     message.isUser ? (
                       <Text style={[
                         styles.messageText, 
-                        styles.userText,
-                        responsiveStyles.messageText,
-                        responsiveStyles.userText
+                        styles.userText
                       ]}>
                         {message.text}
                       </Text>
@@ -1003,9 +1042,7 @@ export default function AI() {
                   ) : null}
                   <Text style={[
                     styles.messageTime,
-                    message.isUser ? styles.userTime : styles.aiTime,
-                    responsiveStyles.messageTime,
-                    message.isUser ? responsiveStyles.userTime : responsiveStyles.aiTime
+                    message.isUser ? styles.userTime : styles.aiTime
                   ]}>
                     {message.timestamp}
                   </Text>
@@ -1016,20 +1053,15 @@ export default function AI() {
             {isLoading && (
               <View style={[
                 styles.messageContainer, 
-                styles.aiMessage,
-                responsiveStyles.messageContainer,
-                responsiveStyles.aiMessage
+                styles.aiMessage
               ]}>
                 <View style={[
                   styles.messageBubble, 
                   styles.aiBubble, 
-                  styles.loadingBubble,
-                  responsiveStyles.messageBubble,
-                  responsiveStyles.aiBubble,
-                  responsiveStyles.loadingBubble
+                  styles.loadingBubble
                 ]}>
                   <ActivityIndicator size="small" color="#007AFF" />
-                  <Text style={[styles.loadingText, responsiveStyles.loadingText]}>
+                  <Text style={styles.loadingText}>
                     AI가 답변을 생성하고 있어요...
                   </Text>
                 </View>
@@ -1037,12 +1069,12 @@ export default function AI() {
             )}
           </ScrollView>
 
-          <View style={[styles.inputContainer, responsiveStyles.inputContainer]}>
+          <View style={styles.inputContainer}>
             {selectedImage && (
-              <View style={[styles.selectedImageContainer, responsiveStyles.selectedImageContainer]}>
+              <View style={styles.selectedImageContainer}>
                 <Image 
                   source={{ uri: selectedImage }} 
-                  style={[styles.selectedImagePreview, responsiveStyles.selectedImagePreview]} 
+                  style={styles.selectedImagePreview} 
                 />
                 <TouchableOpacity style={styles.removeImageButton} onPress={removeSelectedImage}>
                   <Text style={styles.removeImageText}>✕</Text>
@@ -1052,15 +1084,15 @@ export default function AI() {
                 </View>
               </View>
             )}
-            <View style={[styles.inputRow, responsiveStyles.inputRow]}>
+            <View style={styles.inputRow}>
               <TouchableOpacity
-                style={[styles.addButton, responsiveStyles.addButton]}
+                style={styles.addButton}
                 onPress={showImagePicker}
               >
-                <Text style={[styles.addButtonText, responsiveStyles.addButtonText]}>+</Text>
+                <Text style={styles.addButtonText}>+</Text>
               </TouchableOpacity>
               <TextInput
-                style={[styles.textInput, responsiveStyles.textInput]}
+                style={styles.textInput}
                 value={inputText}
                 onChangeText={setInputText}
                 placeholder={selectedImage ? "문제에 대해 질문해주세요..." : "메시지를 입력하세요..."}
@@ -1068,7 +1100,6 @@ export default function AI() {
                 multiline
                 maxLength={500}
                 onFocus={() => {
-                  // 키보드가 올라올 때 스크롤을 최하단으로
                   setTimeout(() => {
                     scrollViewRef.current?.scrollToEnd({ animated: true });
                   }, 300);
@@ -1077,23 +1108,24 @@ export default function AI() {
               <TouchableOpacity
                 style={[
                   styles.sendButton, 
-                  responsiveStyles.sendButton,
-                  (!inputText.trim() && !selectedImage) && [styles.sendButtonDisabled, responsiveStyles.sendButtonDisabled]
+                  (!inputText.trim() && !selectedImage) && styles.sendButtonDisabled
                 ]}
                 onPress={sendMessage}
                 disabled={(!inputText.trim() && !selectedImage) || isLoading}
               >
-                <Text style={[styles.sendButtonText, responsiveStyles.sendButtonText]}>전송</Text>
+                <Text style={styles.sendButtonText}>전송</Text>
               </TouchableOpacity>
             </View>
           </View>
         </KeyboardAvoidingView>
         )}
 
-        {/* 모바일 슬라이드 사이드바 */}
         {screenInfo.isPhone && sidebarVisible && (
           <View style={styles.mobileSidebar}>
-            <View style={styles.mobileSidebarContent}>
+            <Animated.View style={[
+              styles.mobileSidebarContent,
+              { transform: [{ translateX: slideAnim }] }
+            ]}>
               <View style={styles.searchContainer}>
                 <Text style={styles.searchIconText}>🔍</Text>
                 <TextInput 
@@ -1123,23 +1155,24 @@ export default function AI() {
                 <View style={styles.dot} />
                 <View style={styles.dot} />
               </View>
-            </View>
+            </Animated.View>
             
             <TouchableOpacity 
               style={styles.mobileSidebarOverlay} 
-              onPress={() => setSidebarVisible(false)}
+              onPress={() => {
+                Animated.timing(slideAnim, {
+                  toValue: -300,
+                  duration: 300,
+                  useNativeDriver: true,
+                }).start(() => {
+                  setSidebarVisible(false);
+                });
+              }}
             />
           </View>
         )}
       </View>
-      {Platform.OS === 'android' && (
-        <View style={{ 
-          height: 48, // 안드로이드 네비게이션 바 표준 높이
-          backgroundColor: 'white' 
-        }} />
-      )}
 
-      {/* AI 스타일 선택 모달 */}
       <Modal
         visible={showStyleModal}
         transparent={true}
@@ -1159,7 +1192,7 @@ export default function AI() {
                   setShowStyleModal(false);
                 }}
               >
-                <Text style={styles.styleName}>친절한 스타일</Text>
+                <Text style={styles.styleName}>친근한 스타일</Text>
                 <Text style={styles.styleDescription}>따뜻하고 격려하는 선생님</Text>
               </TouchableOpacity>
               
@@ -1183,6 +1216,39 @@ export default function AI() {
               >
                 <Text style={styles.styleName}>커플 스타일</Text>
                 <Text style={styles.styleDescription}>애정 어린 학습 파트너</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={[styles.styleOptionButton, aiStyle === 'professional' && styles.selectedStyleButton]}
+                onPress={() => {
+                  saveAiStyle('professional');
+                  setShowStyleModal(false);
+                }}
+              >
+                <Text style={styles.styleName}>전문적인 스타일</Text>
+                <Text style={styles.styleDescription}>체계적이고 정확한 멘토</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={[styles.styleOptionButton, aiStyle === 'casual' && styles.selectedStyleButton]}
+                onPress={() => {
+                  saveAiStyle('casual');
+                  setShowStyleModal(false);
+                }}
+              >
+                <Text style={styles.styleName}>캠주얼한 스타일</Text>
+                <Text style={styles.styleDescription}>편하고 친근한 친구</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={[styles.styleOptionButton, aiStyle === 'formal' && styles.selectedStyleButton]}
+                onPress={() => {
+                  saveAiStyle('formal');
+                  setShowStyleModal(false);
+                }}
+              >
+                <Text style={styles.styleName}>격식있는 스타일</Text>
+                <Text style={styles.styleDescription}>정중하고 품위있는 교육자</Text>
               </TouchableOpacity>
             </View>
             
@@ -1214,19 +1280,19 @@ const baseStyles = StyleSheet.create({
   defaultProfileIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#4A90E2', justifyContent: 'center', alignItems: 'center' },
   profileText: { fontSize: 16, color: '#fff', fontWeight: '600' },
   container: { flex: 1, flexDirection: 'row' },
-  sidebar: { width: 320, paddingHorizontal: 20, paddingVertical: 24, backgroundColor: 'white', borderRightWidth: 1, borderRightColor: '#E5E5E5' },
+  sidebar: { width: 320, backgroundColor: 'white', paddingHorizontal: 20, paddingVertical: 24, borderRightWidth: 1, borderRightColor: '#E5E5E5' },
   mobileSidebar: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)', // 반투명 배경
     zIndex: 1000,
     flexDirection: 'row',
   },
   mobileSidebarContent: {
-    width: '80%',
+    width: '80%', // 화면의 80% 차지
     backgroundColor: 'white',
     paddingHorizontal: 20,
     paddingVertical: 24,
@@ -1238,7 +1304,7 @@ const baseStyles = StyleSheet.create({
     elevation: 10,
   },
   mobileSidebarOverlay: {
-    flex: 1,
+    flex: 1, // 나머지 20% 영역 (터치하면 닫힘)
   },
   searchContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F5F5F5', borderRadius: 25, marginBottom: 24, paddingHorizontal: 16, height: 44 },
   searchIconText: { fontSize: 14, color: '#999', marginRight: 8 },
@@ -1246,18 +1312,18 @@ const baseStyles = StyleSheet.create({
   subjectList: { flex: 1, gap: 4 },
   subjectItem: { paddingVertical: 14, paddingHorizontal: 16, borderRadius: 10 },
   activeSubjectItem: { backgroundColor: '#F0F0F0' },
-  subjectText: { fontSize: 16, fontWeight: '400', color: '#666' },
-  activeSubjectText: { fontWeight: '600', color: '#000' },
+  subjectText: { fontSize: 16, color: '#666', fontWeight: '400' },
+  activeSubjectText: { color: '#000', fontWeight: '600' },
   bottomDots: { flexDirection: 'row', justifyContent: 'center', gap: 8, paddingTop: 24 },
   dot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#D0D0D0' },
   activeDot: { backgroundColor: '#666' },
   mainContent: { flex: 1, backgroundColor: '#F8F9FA' },
   mainContentExpanded: { paddingLeft: 16 },
-  messagesContainer: { flex: 1, padding: 16 },
-  messagesContent: { paddingBottom: 20 },
+  messagesContainer: { flex: 1, paddingHorizontal: 16 },
+  messagesContent: { paddingBottom: 20, paddingTop: 16 },
   messageContainer: { marginBottom: 16 },
   userMessage: { alignItems: 'flex-end' },
-  aiMessage: { alignItems: 'flex-start' },
+  aiMessage: { alignItems: 'flex-start', paddingLeft: 0 },
   messageBubble: { maxWidth: '80%', borderRadius: 20, padding: 16 },
   userBubble: { backgroundColor: '#007AFF', borderBottomRightRadius: 4 },
   aiBubble: { backgroundColor: 'white', borderBottomLeftRadius: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 3, elevation: 3 },
@@ -1275,17 +1341,16 @@ const baseStyles = StyleSheet.create({
   removeImageText: { color: 'white', fontSize: 16, fontWeight: 'bold' },
   imageLabel: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0, 122, 255, 0.9)', borderBottomLeftRadius: 12, borderBottomRightRadius: 12, paddingVertical: 4, paddingHorizontal: 8 },
   imageLabelText: { color: 'white', fontSize: 11, fontWeight: '600', textAlign: 'center' },
-  inputRow: { flexDirection: 'row', alignItems: 'flex-end' },
+  inputRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   addButton: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#007AFF', justifyContent: 'center', alignItems: 'center', marginRight: 8 },
   addButtonText: { color: 'white', fontSize: 22, fontWeight: '300' },
   textInput: { flex: 1, borderWidth: 1, borderColor: '#E5E5E5', borderRadius: 20, paddingHorizontal: 16, paddingVertical: 10, marginRight: 8, maxHeight: 100, fontSize: 16, backgroundColor: '#F8F9FA' },
   sendButton: { backgroundColor: '#007AFF', borderRadius: 20, paddingHorizontal: 24, paddingVertical: 10, justifyContent: 'center', minHeight: 40 },
   sendButtonDisabled: { backgroundColor: '#C7C7CC' },
-  sendButtonText: { color: 'white', fontWeight: '600', fontSize: responsive.fontSize(14) },
-  messageImageContainer: { marginBottom: responsive.spacing(10), borderRadius: 12, overflow: 'hidden', borderWidth: 2, borderColor: '#E5E5E5' },
+  sendButtonText: { color: 'white', fontWeight: '600', fontSize: 14 },
+  messageImageContainer: { marginBottom: 10, borderRadius: 12, overflow: 'hidden', borderWidth: 2, borderColor: '#E5E5E5' },
   messageImage: { width: 200, height: 200 },
   
-  // AI 스타일 관련 스타일
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   styleButton: { 
     backgroundColor: '#E3F2FD', 

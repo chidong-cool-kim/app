@@ -1,11 +1,19 @@
 {
   "expo": {
-    "name": "my-app",
-    "slug": "my-app",
+    "name": "StudyTime",
+    "slug": "studytime",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
+    "scheme": "studytime",
+    "extra": {
+      "apiUrl": "http://192.168.45.53:5000",
+      "eas": {
+        "projectId": "a1801450-cf8a-4957-a492-342af8dc3dbe"
+      },
+      "devTips": "1) 동일 Wi‑Fi 확인 2) 방화벽에서 19000/19001/8081 허용 3) Windows에서: set REACT_NATIVE_PACKAGER_HOSTNAME=192.168.45.53 && expo start --tunnel  (또는 PowerShell: $env:REACT_NATIVE_PACKAGER_HOSTNAME=\"192.168.45.53\"; expo start --tunnel) 4) Expo Go 또는 custom dev client로 QR/exp://192.168.45.53:19000 접속"
+    },
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
@@ -14,7 +22,9 @@
     "ios": {
       "supportsTablet": true,
       "jsEngine": "jsc",
-      "newArchEnabled": false
+      "newArchEnabled": true,
+      "bundleIdentifier": "com.studytime.app",
+      "buildNumber": "1"
     },
     "android": {
       "adaptiveIcon": {
@@ -22,14 +32,36 @@
         "backgroundColor": "#ffffff"
       },
       "jsEngine": "jsc",
-      "newArchEnabled": false,
+      "newArchEnabled": true,
       "permissions": [
         "NOTIFICATIONS",
         "SCHEDULE_EXACT_ALARM",
         "USE_EXACT_ALARM",
         "READ_EXTERNAL_STORAGE",
         "WRITE_EXTERNAL_STORAGE"
-      ]
+      ],
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "myapp.com",
+              "pathPrefix": "/invite"
+            },
+            {
+              "scheme": "myapp"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
+      ],
+      "package": "com.studytime.app",
+      "versionCode": 1
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -51,7 +83,14 @@
         {
           "iCloudContainerEnvironment": "Production"
         }
-      ]
-    ]
+      ],
+      "react-native-iap"
+    ],
+    "developmentClient": {
+      "url": "exp://192.168.45.53:19000"
+    },
+    "packagerOpts": {
+      "hostType": "lan"
+    }
   }
 }

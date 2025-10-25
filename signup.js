@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -71,19 +71,23 @@ export default function Signup() {
             return;
         }
 
-        // 이미 가입된 이메일인지 확인
-        const existingUser = await database.getUserByEmail(email.trim().toLowerCase());
-        if (existingUser) {
-            Alert.alert('오류', '이미 가입된 이메일입니다.');
-            return;
-        }
-
         setIsLoading(true);
 
         try {
-            const result = await emailService.sendVerificationCode(email.trim().toLowerCase());
+            // 서버 API로 인증코드 발송
+            const response = await fetch('http://192.168.45.53:5000/api/auth/send-verification-code', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    email: email.trim().toLowerCase()
+                })
+            });
+
+            const result = await response.json();
             
-            if (result.success) {
+            if (response.ok && result.success) {
                 setIsCodeSent(true);
                 setTimer(300); // 5분 타이머
                 Alert.alert('성공', 'Gmail로 인증코드가 전송되었습니다.\n메일함을 확인해주세요.');
@@ -118,11 +122,23 @@ export default function Signup() {
                 code: verificationCode.trim()
             });
             
-            const result = await emailService.verifyCode(email.trim().toLowerCase(), verificationCode.trim());
+            // 서버 API로 인증코드 확인
+            const response = await fetch('http://192.168.45.53:5000/api/auth/verify-code', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    email: email.trim().toLowerCase(),
+                    code: verificationCode.trim()
+                })
+            });
+
+            const result = await response.json();
             
             console.log('인증코드 검증 결과:', result);
             
-            if (result.success) {
+            if (response.ok && result.success) {
                 setIsEmailVerified(true);
                 setTimer(0);
                 Alert.alert('성공', '이메일 인증이 완료되었습니다!');
@@ -171,27 +187,25 @@ export default function Signup() {
         setIsLoading(true);
 
         try {
-            const userData = {
+            // 임시 데이터만 저장 (DB에는 아직 저장 안 함!)
+            const tempUserData = {
                 name: name.trim(),
                 email: email.trim().toLowerCase(),
-                password: password, // 실제로는 해시화해야 함
+                password: password,
                 provider: 'email',
                 providerId: email.trim().toLowerCase(),
             };
 
-            const newUser = await database.createUser(userData);
-            
-            Alert.alert('성공', '회원가입이 완료되었습니다!\n닉네임을 설정해주세요.', [
+            console.log('임시 사용자 데이터 생성:', { ...tempUserData, password: '***' });
+
+            // 닉네임 설정 화면으로 이동 (DB 저장은 아직 안 함)
+            Alert.alert('성공', '닉네임을 설정해주세요.', [
                 {
                     text: '닉네임 설정하기',
                     onPress: () => {
                         navigation.navigate('Username', { 
-                            userInfo: { 
-                                name: newUser.name, 
-                                email: newUser.email,
-                                id: newUser._id || newUser.id
-                            },
-                            fromSignup: true // 일반 회원가입에서 왔다는 표시
+                            userInfo: tempUserData,
+                            fromSignup: true // 회원가입 중임을 표시
                         });
                     }
                 }
@@ -214,8 +228,12 @@ export default function Signup() {
         return `${mins}:${secs.toString().padStart(2, '0')}`;
     };
 
-    // 반응형 스타일 선택 (기존 디자인 유지)
-    const styles = screenInfo.isPhone ? phoneStyles : baseStyles;
+    // 반응형 스타일 선택
+    const styles = useMemo(() => {
+        if (screenInfo.isTablet) return tabletStyles;
+        if (screenInfo.isPhone) return phoneStyles;
+        return baseStyles;
+    }, [screenInfo]);
 
     return (
         <OrientationLock isNoteScreen={false}>
@@ -261,7 +279,7 @@ export default function Signup() {
                         <View style={styles.emailContainer}>
                             <TextInput
                                 style={[styles.textInput, styles.emailInput]}
-                                placeholder="Gmail 주소를 입력하세요"
+                                placeholder="Gmail 주소"
                                 placeholderTextColor="#999"
                                 value={email}
                                 onChangeText={setEmail}
@@ -278,7 +296,7 @@ export default function Signup() {
                                     <ActivityIndicator size="small" color="#fff" />
                                 ) : (
                                     <Text style={styles.verifyButtonText}>
-                                        {isEmailVerified ? '인증완료' : '인증코드 발송'}
+                                        {isEmailVerified ? '완료' : '발송'}
                                     </Text>
                                 )}
                             </TouchableOpacity>
@@ -382,164 +400,164 @@ export default function Signup() {
     );
 }
 
+// 데스크톱 기본 스타일
 const baseStyles = StyleSheet.create({
     safeArea: { 
         flex: 1, 
-        backgroundColor: 'white',
+        backgroundColor: '#ffffff',
         paddingTop: 20,
     },
     dividerLine: { 
         width: 1, 
-        backgroundColor: '#ddd', 
+        backgroundColor: '#e0e0e0', 
         height: '100%' 
     },
     hr: { 
         height: 30, 
-        backgroundColor: 'black', 
+        backgroundColor: '#000', 
         marginVertical: 5, 
         width: '100%' 
-    },
-    hrMobile: {
-        height: 20,
     },
     position1: { 
         width: '100%', 
         justifyContent: 'center', 
         alignSelf: 'flex-start', 
-        marginTop: 25 
-    },
-    position1Mobile: {
-        marginTop: 10,
+        marginTop: 10 
     },
     position2: { 
-        width: "100%", 
+        width: '100%', 
         flex: 1, 
         flexDirection: 'row' 
     },
     position3: { 
-        width: "100%", 
+        width: '100%', 
         justifyContent: 'center', 
         alignSelf: 'flex-end', 
-        marginBottom: 25 
-    },
-    position3Mobile: {
-        marginBottom: 10,
+        marginBottom: 10 
     },
     position2_1: { 
         flex: 1, 
-        display: "flex", 
         justifyContent: 'center', 
-        alignItems: "center",
-        backgroundColor: '#fbfcfd'
+        alignItems: 'center',
+        backgroundColor: '#f8f9fa',
+        borderRightWidth: 1,
+        borderRightColor: '#e0e0e0'
     },
     position2_2: { 
         flex: 1, 
-        display: "flex", 
         justifyContent: 'center',
         alignItems: 'center',
-        padding: 20
+        paddingHorizontal: 60,
+        paddingVertical: 40
     },
     formContainer: {
         width: '100%',
-        maxWidth: 400,
-        alignItems: 'center'
+        maxWidth: 450,
+        alignItems: 'center',
+        alignSelf: 'center',
+        justifyContent: 'center'
     },
     title: { 
-        fontSize: 52, 
+        fontSize: 48, 
         fontWeight: '700', 
-        marginBottom: 30, 
-        color: '#333',
-        alignSelf: 'flex-start',
-        textAlign: 'left'
+        marginBottom: 32, 
+        color: '#1a1a1a',
+        alignSelf: 'center',
+        textAlign: 'center',
+        width: '100%'
     },
     textInput: { 
         width: '100%', 
-        height: 50, 
+        height: 52, 
         borderWidth: 1, 
-        borderColor: '#ddd', 
-        borderRadius: 8, 
-        paddingHorizontal: 15, 
+        borderColor: '#e0e0e0', 
+        borderRadius: 10, 
+        paddingHorizontal: 16, 
         marginVertical: 8, 
-        fontSize: 16, 
+        fontSize: 15, 
         backgroundColor: '#fff',
-        color: '#000000'
+        color: '#000'
     },
     emailContainer: {
         width: '100%',
         flexDirection: 'row',
         alignItems: 'center',
-        marginVertical: 8
+        justifyContent: 'center',
+        marginVertical: 8,
+        gap: 10
     },
     emailInput: {
         flex: 1,
-        marginRight: 10,
         marginVertical: 0
     },
     verifyButton: {
         backgroundColor: '#007AFF',
-        paddingHorizontal: 15,
-        paddingVertical: 15,
-        borderRadius: 8,
-        minWidth: 100,
+        paddingHorizontal: 24,
+        height: 52,
+        borderRadius: 10,
+        minWidth: 90,
+        justifyContent: 'center',
         alignItems: 'center'
     },
     verifiedButton: {
-        backgroundColor: '#28a745'
+        backgroundColor: '#34C759'
     },
     verifyButtonText: {
         color: '#fff',
-        fontSize: 14,
+        fontSize: 15,
         fontWeight: '600'
     },
     verificationContainer: {
         width: '100%',
         alignItems: 'center',
-        marginVertical: 10
+        justifyContent: 'center',
+        marginVertical: 12
     },
     codeInput: {
         textAlign: 'center',
-        fontSize: 18,
-        letterSpacing: 2
+        fontSize: 20,
+        letterSpacing: 4
     },
     verifyCodeButton: {
         backgroundColor: '#007AFF',
-        paddingHorizontal: 30,
-        paddingVertical: 12,
-        borderRadius: 8,
-        marginTop: 10
+        paddingHorizontal: 40,
+        paddingVertical: 14,
+        borderRadius: 10,
+        marginTop: 12
     },
     timerContainer: {
-        marginTop: 10,
+        marginTop: 12,
         alignItems: 'center'
     },
     timerText: {
         color: '#666',
-        fontSize: 14
+        fontSize: 15
     },
     resendText: {
         color: '#007AFF',
-        fontSize: 14,
+        fontSize: 15,
         textDecorationLine: 'underline'
     },
     loginLink: { 
-        marginTop: 15,
-        marginBottom: 10
+        marginTop: 16,
+        marginBottom: 12
     },
     loginLinkText: {
-        color: "#007AFF",
-        fontSize: 16
+        color: '#007AFF',
+        fontSize: 15,
+        fontWeight: '500'
     },
     signUpButton: { 
         width: '100%', 
-        height: 50, 
+        height: 52, 
         backgroundColor: '#007AFF', 
-        borderRadius: 8, 
+        borderRadius: 10, 
         justifyContent: 'center', 
         alignItems: 'center', 
-        marginTop: 20 
+        marginTop: 24 
     },
     disabledButton: {
-        opacity: 0.6
+        opacity: 0.5
     },
     signUpButtonText: { 
         color: '#fff', 
@@ -547,31 +565,30 @@ const baseStyles = StyleSheet.create({
         fontWeight: '600' 
     },
     img: { 
-        width: 300, 
-        height: 300, 
-        marginRight: 10 
+        width: 280, 
+        height: 280
     }
 });
 
-// 핸드폰용 반응형 스타일
+// 모바일 전용 스타일
 const phoneStyles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#ffffff',
     paddingTop: 20,
   },
   position1: {
     width: '100%',
     justifyContent: 'center',
     alignSelf: 'flex-start',
-    marginTop: 25,
-  },
-  position1Mobile: {
     marginTop: 10,
   },
+  position1Mobile: {
+    marginTop: 15,
+  },
   hr: {
-    height: 30,
-    backgroundColor: 'black',
+    height: 20,
+    backgroundColor: '#000',
     marginVertical: 5,
     width: '100%',
   },
@@ -580,85 +597,95 @@ const phoneStyles = StyleSheet.create({
   },
   position2: {
     flex: 1,
+    width: '100%',
     paddingHorizontal: 20,
-    paddingVertical: 30,
+    paddingVertical: 20,
     justifyContent: 'center',
+    alignItems: 'center',
   },
   position2_1: {
     display: 'none',
   },
   position2_2: {
     flex: 1,
+    width: '100%',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
   },
   formContainer: {
     width: '100%',
     maxWidth: 400,
     alignItems: 'center',
+    alignSelf: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
   },
   title: {
-    fontSize: 32,
+    fontSize: 36,
     fontWeight: '700',
-    marginBottom: 24,
-    color: '#333',
-    alignSelf: 'flex-start',
-    textAlign: 'left',
+    marginBottom: 28,
+    color: '#1a1a1a',
+    alignSelf: 'center',
+    textAlign: 'center',
+    width: '100%',
   },
   textInput: {
     width: '100%',
     height: 52,
     borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    paddingHorizontal: 15,
-    marginVertical: 8,
+    borderColor: '#e0e0e0',
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    marginVertical: 6,
     fontSize: 15,
     backgroundColor: '#fff',
-    color: '#000000',
+    color: '#000',
   },
   emailContainer: {
     width: '100%',
-    flexDirection: 'column',
-    marginVertical: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: 6,
+    gap: 10,
   },
   emailInput: {
-    marginBottom: 8,
+    flex: 1,
     marginVertical: 0,
   },
   verifyButton: {
     backgroundColor: '#007AFF',
-    paddingHorizontal: 15,
+    paddingHorizontal: 20,
     height: 52,
-    borderRadius: 8,
+    borderRadius: 10,
+    minWidth: 85,
     alignItems: 'center',
     justifyContent: 'center',
-    width: '100%',
   },
   verifiedButton: {
-    backgroundColor: '#28a745',
+    backgroundColor: '#34C759',
   },
   verifyButtonText: {
     color: '#fff',
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '600',
   },
   verificationContainer: {
     width: '100%',
     alignItems: 'center',
+    justifyContent: 'center',
     marginVertical: 10,
   },
   codeInput: {
     textAlign: 'center',
     fontSize: 18,
-    letterSpacing: 2,
+    letterSpacing: 3,
   },
   verifyCodeButton: {
     backgroundColor: '#007AFF',
-    paddingHorizontal: 30,
-    paddingVertical: 12,
-    borderRadius: 8,
+    paddingHorizontal: 32,
+    paddingVertical: 14,
+    borderRadius: 10,
     marginTop: 10,
   },
   timerContainer: {
@@ -675,24 +702,25 @@ const phoneStyles = StyleSheet.create({
     textDecorationLine: 'underline',
   },
   loginLink: {
-    marginTop: 15,
-    marginBottom: 10,
+    marginTop: 16,
+    marginBottom: 8,
   },
   loginLinkText: {
     color: '#007AFF',
     fontSize: 15,
+    fontWeight: '500',
   },
   signUpButton: {
     width: '100%',
     height: 52,
     backgroundColor: '#007AFF',
-    borderRadius: 8,
+    borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: 20,
   },
   disabledButton: {
-    opacity: 0.6,
+    opacity: 0.5,
   },
   signUpButtonText: {
     color: '#fff',
@@ -700,8 +728,8 @@ const phoneStyles = StyleSheet.create({
     fontWeight: '600',
   },
   img: {
-    width: 120,
-    height: 120,
+    width: 100,
+    height: 100,
   },
   dividerLine: {
     display: 'none',
@@ -710,9 +738,179 @@ const phoneStyles = StyleSheet.create({
     width: '100%',
     justifyContent: 'center',
     alignSelf: 'flex-end',
-    marginBottom: 25,
-  },
-  position3Mobile: {
     marginBottom: 10,
   },
+  position3Mobile: {
+    marginBottom: 15,
+  },
+});
+
+// 태블릿 전용 스타일 (기존 유지)
+const tabletStyles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#ffffff',
+    paddingTop: 20,
+  },
+  dividerLine: {
+    width: 1,
+    backgroundColor: '#e0e0e0',
+    height: '100%'
+  },
+  hr: {
+    height: 30,
+    backgroundColor: '#000',
+    marginVertical: 5,
+    width: '100%'
+  },
+  position1: {
+    width: '100%',
+    justifyContent: 'center',
+    alignSelf: 'flex-start',
+    marginTop: 10
+  },
+  position2: {
+    width: '100%',
+    flex: 1,
+    flexDirection: 'row'
+  },
+  position3: {
+    width: '100%',
+    justifyContent: 'center',
+    alignSelf: 'flex-end',
+    marginBottom: 10
+  },
+  position2_1: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f8f9fa',
+    borderRightWidth: 1,
+    borderRightColor: '#e0e0e0'
+  },
+  position2_2: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 50,
+    paddingVertical: 40
+  },
+  formContainer: {
+    width: '100%',
+    maxWidth: 500,
+    alignItems: 'center',
+    alignSelf: 'center',
+    justifyContent: 'center'
+  },
+  title: {
+    fontSize: 52,
+    fontWeight: '700',
+    marginBottom: 36,
+    color: '#1a1a1a',
+    alignSelf: 'center',
+    textAlign: 'center',
+    width: '100%'
+  },
+  textInput: {
+    width: '100%',
+    height: 56,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    borderRadius: 12,
+    paddingHorizontal: 18,
+    marginVertical: 10,
+    fontSize: 16,
+    backgroundColor: '#fff',
+    color: '#000'
+  },
+  emailContainer: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: 10,
+    gap: 12
+  },
+  emailInput: {
+    flex: 1,
+    marginVertical: 0
+  },
+  verifyButton: {
+    backgroundColor: '#007AFF',
+    paddingHorizontal: 28,
+    height: 56,
+    borderRadius: 12,
+    minWidth: 100,
+    justifyContent: 'center',
+    alignItems: 'center'
+  },
+  verifiedButton: {
+    backgroundColor: '#34C759'
+  },
+  verifyButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600'
+  },
+  verificationContainer: {
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: 14
+  },
+  codeInput: {
+    textAlign: 'center',
+    fontSize: 22,
+    letterSpacing: 5
+  },
+  verifyCodeButton: {
+    backgroundColor: '#007AFF',
+    paddingHorizontal: 48,
+    paddingVertical: 16,
+    borderRadius: 12,
+    marginTop: 14
+  },
+  timerContainer: {
+    marginTop: 14,
+    alignItems: 'center'
+  },
+  timerText: {
+    color: '#666',
+    fontSize: 16
+  },
+  resendText: {
+    color: '#007AFF',
+    fontSize: 16,
+    textDecorationLine: 'underline'
+  },
+  loginLink: {
+    marginTop: 18,
+    marginBottom: 14
+  },
+  loginLinkText: {
+    color: '#007AFF',
+    fontSize: 17,
+    fontWeight: '500'
+  },
+  signUpButton: {
+    width: '100%',
+    height: 56,
+    backgroundColor: '#007AFF',
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 28
+  },
+  disabledButton: {
+    opacity: 0.5
+  },
+  signUpButtonText: {
+    color: '#fff',
+    fontSize: 17,
+    fontWeight: '600'
+  },
+  img: {
+    width: 320,
+    height: 320
+  }
 });

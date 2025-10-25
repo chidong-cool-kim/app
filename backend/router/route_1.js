@@ -48,8 +48,8 @@ const getOnlineUsers = () => {
 const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {
-        user: process.env.EMAIL_USER || 'your-email@gmail.com',
-        pass: process.env.EMAIL_PASSWORD || 'your-app-password'
+        user: process.env.GMAIL_USER || process.env.EMAIL_USER || 'your-email@gmail.com',
+        pass: process.env.GMAIL_APP_PASSWORD || process.env.EMAIL_PASSWORD || 'your-app-password'
     }
 });
 
@@ -71,13 +71,24 @@ router.post('/send-verification-code', async (req, res) => {
         }
 
         // 이메일 중복 확인
+        console.log('🔍 [인증코드 발송] 이메일 중복 체크:', email.toLowerCase());
         const existingUser = await User.findOne({ email: email.toLowerCase() });
+        console.log('🔍 [인증코드 발송] DB 조회 결과:', existingUser ? '사용자 존재' : '사용자 없음');
+        
         if (existingUser) {
+            console.log('❌ [인증코드 발송] 이미 가입된 이메일:', {
+                email: existingUser.email,
+                username: existingUser.username,
+                provider: existingUser.provider,
+                createdAt: existingUser.createdAt
+            });
             return res.status(400).json({ 
                 success: false, 
                 message: '이미 가입된 이메일입니다.' 
             });
         }
+        
+        console.log('✅ [인증코드 발송] 신규 이메일, 인증코드 발송 진행');
 
         // 기존 인증코드 삭제
         await Verification.deleteMany({ email: email.toLowerCase() });
@@ -189,6 +200,14 @@ router.post('/signup', async (req, res) => {
         }
 
         // 사용자 생성
+        const now = new Date();
+        const today = now.toISOString().split('T')[0];
+        const dayOfWeek = now.getDay();
+        const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+        const monday = new Date(now);
+        monday.setDate(now.getDate() + mondayOffset);
+        const weekStart = monday.toISOString().split('T')[0];
+
         const user = await User.create({
             name,
             email: email.toLowerCase(),
@@ -203,7 +222,45 @@ router.post('/signup', async (req, res) => {
                 banStartDate: null,
                 banEndDate: null,
                 bannedBy: null
-            }
+            },
+            aiStyle: 'friendly',
+            notes: [],
+            aiChats: [],
+            planners: [],
+            weeklyStudy: {
+                weekStart: weekStart,
+                dailyMinutes: { monday: 0, tuesday: 0, wednesday: 0, thursday: 0, friday: 0, saturday: 0, sunday: 0 },
+                totalMinutes: 0,
+                sessions: [],
+            },
+            dailyStudy: {
+                date: today,
+                totalMinutes: 0,
+                sessions: []
+            },
+            levelSystem: {
+                currentLevel: 1,
+                currentExp: 0,
+                totalStudyTime: 0,
+                lastUpdated: now,
+            },
+            subscription: {
+                isActive: false,
+            },
+            aiUsage: {
+                questionsUsed: 0,
+                lastResetDate: now,
+            },
+            attendance: {
+                currentStreak: 0,
+                longestStreak: 0,
+                totalDays: 0,
+                lastCheckIn: null,
+                checkInDates: [],
+            },
+            messages: [],
+            invitations: [],
+            lastActivity: now,
         });
 
         res.status(201).json({ 
@@ -557,14 +614,27 @@ router.get('/user/details', async (req, res) => {
         // 사용자가 가입한 스터디 그룹 조회
         let studyGroups = [];
         try {
+            const mongoose = require('mongoose');
+            const userId = mongoose.Types.ObjectId(user._id);
+            
             studyGroups = await StudyGroup.find({ 
-                members: { $elemMatch: { email: email } } 
+                'members.user': userId,
+                isActive: true
             }).select('name description');
+            
+            console.log('📚 스터디 그룹 조회 결과:', {
+                email,
+                userId: user._id,
+                userIdType: typeof user._id,
+                convertedUserId: userId,
+                count: studyGroups.length,
+                groups: studyGroups.map(g => ({ id: g._id, name: g.name }))
+            });
         } catch (err) {
             console.error('스터디 그룹 조회 오류:', err);
         }
 
-        console.log('✅ 사용자 정보 조회 성공:', email);
+        console.log('✅ 사용자 정보 조회 성공:', email, '스터디그룹 수:', studyGroups.length);
         
         res.json({
             success: true,
@@ -657,3 +727,68 @@ router.post('/heartbeat', async (req, res) => {
 });
 
 module.exports = router;
+
+// POST /api/auth/update-username - 닉네임 설정
+router.post('/update-username', async (req, res) => {
+    try {
+        const { email, username } = req.body;
+
+        if (!email || !username) {
+            return res.status(400).json({ 
+                success: false, 
+                message: '이메일과 닉네임을 입력해주세요.' 
+            });
+        }
+
+        // 닉네임 유효성 검사 (2-12자, 한글/영문/숫자만)
+        const regex = /^[가-힣a-zA-Z0-9]{2,12}$/;
+        if (!regex.test(username)) {
+            return res.status(400).json({ 
+                success: false, 
+                message: '닉네임은 2-12자의 한글, 영문, 숫자만 사용 가능합니다.' 
+            });
+        }
+
+        // 닉네임 중복 확인
+        const existingUserWithUsername = await User.findOne({ username: username });
+        if (existingUserWithUsername) {
+            return res.status(400).json({ 
+                success: false, 
+                message: '이미 사용중인 닉네임입니다.' 
+            });
+        }
+
+        const user = await User.findOneAndUpdate(
+            { email: email.toLowerCase() },
+            { username: username },
+            { new: true }
+        );
+
+        if (!user) {
+            return res.status(404).json({ 
+                success: false, 
+                message: '사용자를 찾을 수 없습니다.' 
+            });
+        }
+
+        res.json({ 
+            success: true, 
+            message: '닉네임이 설정되었습니다.',
+            user: {
+                id: user._id,
+                name: user.name,
+                email: user.email,
+                username: user.username
+            }
+        });
+
+    } catch (error) {
+        console.error('닉네임 설정 오류:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: '닉네임 설정에 실패했습니다.',
+            error: error.message 
+        });
+    }
+});
+

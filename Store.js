@@ -14,14 +14,11 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-// IAP 기능은 개발 빌드에서만 작동 (Expo Go에서는 지원 안됨)
-// import RNIap, {
-//   Product,
-//   Subscription,
-// } from 'react-native-iap';
+import * as RNIap from 'react-native-iap';
 import userDataService from './userDataService';
 import { useResponsive } from './hooks/useResponsive';
 import OrientationLock from './components/OrientationLock';
+
 // Google Play Console에 등록한 상품 ID
 const PRODUCT_IDS = Platform.select({
   android: ['basic_monthly', 'premium_monthly'],
@@ -41,6 +38,7 @@ const PLANS = [
       'AI 질문 월 30개',
       'GPT-4o mini 모델 사용',
       '전용 커뮤니티 스타일 제공',
+      '노트 최대 15개 생성 (텍스트+그림)',
     ],
   },
   {
@@ -55,7 +53,8 @@ const PLANS = [
       'AI 질문 월 65개',
       'GPT-4o 최신 모델 사용',
       '더 많은 전용 커뮤니티 스타일 제공',
-      'AI 응답 스타일 선택 가능',
+      'AI 응답 스타일 선택 가능 (6가지)',
+      '노트 최대 25개 생성 (텍스트+그림)',
       '잠근된 모든 노트 기능 해제',
       '우선 지원',
     ],
@@ -73,38 +72,93 @@ export default function Store() {
   const [processingPayment, setProcessingPayment] = useState(false);
   const [products, setProducts] = useState([]);
   const [subscriptions, setSubscriptions] = useState([]);
-  const [screenInfo, setScreenInfo] = useState(getScreenInfo());
-  const [purchaseUpdateSubscription, setPurchaseUpdateSubscription] = useState(null);
-  const [purchaseErrorSubscription, setPurchaseErrorSubscription] = useState(null);
-  const [selectedAiStyle, setSelectedAiStyle] = useState('friendly');
-  const [showStyleModal, setShowStyleModal] = useState(false);
-
-  // 화면 크기 변경 감지
-  useEffect(() => {
-    const subscription = Dimensions.addEventListener('change', () => {
-      setScreenInfo(getScreenInfo());
-    });
-
-    return () => subscription?.remove();
-  }, []);
+  const [availableProducts, setAvailableProducts] = useState([]);
+  const [purchaseInProgress, setPurchaseInProgress] = useState(false);
 
   useEffect(() => {
     initializeIAP();
     loadUserData();
-    loadAiStyle();
-
-    return () => {
-      // IAP 정리 (개발 빌드에서만 필요)
-      console.log('IAP 정리 - 개발 빌드에서만 작동');
-    };
+    checkSubscriptionStatus(); // 구독 상태 체크
   }, []);
 
-  // IAP 초기화 (임시 비활성화 - Expo Go에서는 지원 안됨)
-  const initializeIAP = async () => {
-    console.log('IAP 기능은 개발 빌드에서만 사용 가능합니다.');
-    console.log('현재는 임시 결제 시스템을 사용합니다.');
-  };
+  // 구독 상태 주기적 체크
+  useEffect(() => {
+    const interval = setInterval(() => {
+      checkSubscriptionStatus();
+    }, 60000); // 1분마다 체크
 
+    return () => clearInterval(interval);
+  }, [currentUser]);
+
+  // IAP 초기화
+  const initializeIAP = async () => {
+    try {
+      console.log('🔧 IAP 초기화 시작...');
+      
+      // IAP 연결
+      const result = await RNIap.initConnection();
+      console.log('✅ IAP 연결 성공:', result);
+
+      // 상품 정보 가져오기
+      if (Platform.OS === 'android') {
+        const products = await RNIap.getSubscriptions({ skus: PRODUCT_IDS.android });
+        console.log('📦 구독 상품 정보:', products);
+        setAvailableProducts(products);
+      } else if (Platform.OS === 'ios') {
+        const products = await RNIap.getProducts({ skus: PRODUCT_IDS.ios });
+        console.log('📦 상품 정보:', products);
+        setAvailableProducts(products);
+      }
+
+      // 구매 업데이트 리스너 등록
+      const purchaseUpdateSubscription = RNIap.purchaseUpdatedListener(
+        async (purchase) => {
+          console.log('💳 구매 업데이트:', purchase);
+          const receipt = purchase.transactionReceipt || purchase.purchaseToken;
+          
+          if (receipt) {
+            try {
+              // 서버에 영수증 검증 요청
+              await verifyPurchase(purchase);
+              
+              // 구매 완료 처리
+              if (Platform.OS === 'android') {
+                await RNIap.acknowledgePurchaseAndroid({
+                  token: purchase.purchaseToken,
+                });
+              } else if (Platform.OS === 'ios') {
+                await RNIap.finishTransaction({ purchase });
+              }
+              
+              console.log('✅ 구매 완료 처리됨');
+            } catch (error) {
+              console.error('❌ 구매 검증 실패:', error);
+            }
+          }
+        }
+      );
+
+      const purchaseErrorSubscription = RNIap.purchaseErrorListener(
+        (error) => {
+          console.error('❌ 구매 오류:', error);
+          setPurchaseInProgress(false);
+          if (error.code !== 'E_USER_CANCELLED') {
+            Alert.alert('구매 실패', error.message || '구매 중 오류가 발생했습니다.');
+          }
+        }
+      );
+
+      // 컴포넌트 언마운트 시 리스너 해제
+      return () => {
+        purchaseUpdateSubscription?.remove();
+        purchaseErrorSubscription?.remove();
+        RNIap.endConnection();
+      };
+    } catch (error) {
+      console.error('❌ IAP 초기화 실패:', error);
+      console.log('⚠️ 개발 모드에서는 임시 결제 시스템을 사용합니다.');
+    }
+  };
 
   const loadUserData = async () => {
     try {
@@ -124,13 +178,14 @@ export default function Store() {
     }
   };
 
-  const loadAiStyle = async () => {
+  // 구독 상태 체크 함수
+  const checkSubscriptionStatus = async () => {
     try {
       const user = await userDataService.getCurrentUser();
-      if (!user) return;
+      if (!user || !user.email) return;
 
-      // 서버에서 AI 스타일 불러오기
-      const response = await fetch(`http://192.168.45.53:5000/api/users/ai-style/${user.email}`, {
+      // 서버에서 최신 구독 정보 가져오기 (만료 체크 포함)
+      const response = await fetch(`http://192.168.45.53:5000/api/subscription/${user.email}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -139,131 +194,192 @@ export default function Store() {
 
       if (response.ok) {
         const data = await response.json();
-        if (data.success) {
-          setSelectedAiStyle(data.aiStyle);
-          // 로컬에도 저장
-          await AsyncStorage.setItem('aiStyle', data.aiStyle);
-        }
-      } else {
-        // 서버에서 불러오기 실패 시 로컬에서 불러오기
-        const savedStyle = await AsyncStorage.getItem('aiStyle');
-        if (savedStyle) {
-          setSelectedAiStyle(savedStyle);
+        if (data.success && data.subscription) {
+          // 로컬 사용자 정보 업데이트
+          const updatedUser = {
+            ...user,
+            subscription: data.subscription
+          };
+          await AsyncStorage.setItem('currentUser', JSON.stringify(updatedUser));
+          setCurrentUser(updatedUser);
+          
+          // 만료된 경우 알림
+          if (!data.subscription.isActive && user.subscription?.isActive) {
+            Alert.alert(
+              '구독 만료',
+              '구독 기간이 만료되었습니다. 계속 이용하시려면 구독을 갱신해주세요.',
+              [{ text: '확인' }]
+            );
+          }
         }
       }
     } catch (error) {
-      console.error('AI 스타일 로드 실패:', error);
-      // 오류 시 로컬에서 불러오기
-      try {
-        const savedStyle = await AsyncStorage.getItem('aiStyle');
-        if (savedStyle) {
-          setSelectedAiStyle(savedStyle);
-        }
-      } catch (localError) {
-        console.error('로컬 AI 스타일 로드 실패:', localError);
-      }
+      console.error('구독 상태 체크 실패:', error);
     }
   };
 
-  const saveAiStyle = async (style) => {
-    try {
-      const user = await userDataService.getCurrentUser();
-      if (!user) return;
-
-      // 서버에 AI 스타일 저장
-      const response = await fetch(`http://192.168.45.53:5000/api/users/ai-style`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: user.email,
-          aiStyle: style
-        })
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) {
-          // 로컬에도 저장
-          await AsyncStorage.setItem('aiStyle', style);
-          setSelectedAiStyle(style);
-        }
-      } else {
-        // 서버 저장 실패 시 로컬에만 저장
-        await AsyncStorage.setItem('aiStyle', style);
-        setSelectedAiStyle(style);
-      }
-    } catch (error) {
-      console.error('AI 스타일 저장 실패:', error);
-      // 오류 시 로컬에만 저장
-      try {
-        await AsyncStorage.setItem('aiStyle', style);
-        setSelectedAiStyle(style);
-      } catch (localError) {
-        console.error('로컬 AI 스타일 저장 실패:', localError);
-      }
-    }
-  };
 
   const handlePlanSelect = (plan) => {
     setSelectedPlan(plan);
     setShowPaymentModal(true);
   };
 
-  // 임시 결제 처리 (개발 중)
-  const handlePayment = async () => {
-    if (!selectedPlan) return;
-
+  // 구매 검증
+  const verifyPurchase = async (purchase) => {
     try {
-      setProcessingPayment(true);
-      console.log('임시 결제 처리:', selectedPlan.name);
+      const user = await userDataService.getCurrentUser();
+      if (!user) throw new Error('사용자 정보를 찾을 수 없습니다.');
 
-      // 2초 대기 (결제 시뮬레이션)
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      const response = await fetch('http://192.168.45.53:5000/api/iap/verify', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: user.email,
+          platform: Platform.OS,
+          productId: purchase.productId,
+          transactionId: purchase.transactionId,
+          purchaseToken: purchase.purchaseToken,
+          receiptData: purchase.transactionReceipt,
+        }),
+      });
 
-      const subscriptionData = {
-        planId: selectedPlan.id,
-        planName: selectedPlan.name,
-        price: selectedPlan.price,
-        aiQuestions: selectedPlan.aiQuestions,
-        aiModel: selectedPlan.aiModel,
-        startDate: new Date().toISOString(),
-        endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-        isActive: true,
-      };
+      const data = await response.json();
+      
+      if (data.success) {
+        // 로컬 사용자 정보 업데이트
+        const plan = PLANS.find(p => p.productId === purchase.productId);
+        if (plan) {
+          const subscriptionData = {
+            planId: plan.id,
+            planName: plan.name,
+            price: plan.price,
+            aiQuestions: plan.aiQuestions,
+            aiModel: plan.aiModel,
+            startDate: new Date().toISOString(),
+            endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+            isActive: true,
+            productId: purchase.productId,
+            transactionId: purchase.transactionId,
+            purchaseToken: purchase.purchaseToken,
+          };
 
-      await userDataService.updateSubscription(subscriptionData);
+          const updatedUser = {
+            ...user,
+            subscription: subscriptionData,
+          };
 
-      const updatedUser = {
-        ...currentUser,
-        subscription: subscriptionData,
-      };
-
-      await userDataService.updateCurrentUser(updatedUser);
-
-      setProcessingPayment(false);
-      setShowPaymentModal(false);
-
-      Alert.alert(
-        '구독 활성화 (개발 모드)',
-        `${selectedPlan.name} 플랜이 활성화되었습니다!\n\n✅ ${selectedPlan.aiModel} 모델 사용 가능\n✅ AI 질문 ${selectedPlan.aiQuestions}개/월\n✅ 프로필 커스터마이징 기능\n\n※ 실제 결제는 앱 출시 후 가능합니다.`,
-        [{ text: '확인', onPress: () => loadUserData() }]
-      );
+          await userDataService.updateCurrentUser(updatedUser);
+          setCurrentUser(updatedUser);
+          
+          setProcessingPayment(false);
+          setShowPaymentModal(false);
+          setPurchaseInProgress(false);
+          Alert.alert(
+            '구독 완료!',
+            `${plan.name} 플랜이 활성화되었습니다!\n\n✅ ${plan.aiModel} 모델 사용 가능\n✅ AI 질문 ${plan.aiQuestions}개/월\n✅ 프로필 커스터마이징 기능`,
+            [{ text: '확인', onPress: () => loadUserData() }]
+          );
+        }
+      } else {
+        throw new Error(data.message || '구매 검증에 실패했습니다.');
+      }
     } catch (error) {
-      console.error('임시 결제 처리 실패:', error);
-      setProcessingPayment(false);
-      Alert.alert('오류', '결제 처리에 실패했습니다.');
+      console.error('구매 검증 오류:', error);
+      throw error;
     }
   };
 
-  // 구독 복원 (개발 모드)
+  // 실제 결제 처리
+  const handlePayment = async () => {
+    if (!selectedPlan || purchaseInProgress) return;
+
+    try {
+      setProcessingPayment(true);
+      setPurchaseInProgress(true);
+      console.log('🛒 결제 시작:', selectedPlan.name);
+
+      // IAP가 초기화되지 않았으면 오류 표시
+      if (availableProducts.length === 0) {
+        Alert.alert(
+          '결제 불가',
+          '결제 시스템이 초기화되지 않았습니다.\n\n앱을 다시 시작하거나 잠시 후 다시 시도해주세요.',
+          [{ text: '확인' }]
+        );
+        setProcessingPayment(false);
+        setPurchaseInProgress(false);
+        return;
+      }
+
+      // 실제 구매 요청
+      if (Platform.OS === 'android') {
+        await RNIap.requestSubscription({
+          sku: selectedPlan.productId,
+        });
+      } else if (Platform.OS === 'ios') {
+        await RNIap.requestSubscription({
+          sku: selectedPlan.productId,
+        });
+      }
+
+      console.log('✅ 구매 요청 완료');
+    } catch (error) {
+      console.error('❌ 결제 실패:', error);
+      setProcessingPayment(false);
+      setPurchaseInProgress(false);
+      
+      if (error.code === 'E_USER_CANCELLED') {
+        console.log('사용자가 결제를 취소했습니다.');
+      } else {
+        Alert.alert('결제 실패', error.message || '결제 중 오류가 발생했습니다.');
+      }
+    }
+  };
+
+  // 구독 복원
   const restorePurchases = async () => {
-    Alert.alert(
-      '개발 모드',
-      '구독 복원 기능은 실제 앱 출시 후 사용할 수 있습니다.\n\n현재는 개발 모드로 임시 결제만 가능합니다.',
-      [{ text: '확인', style: 'default' }]
-    );
+    try {
+      console.log('🔄 구독 복원 시작...');
+      
+      if (availableProducts.length === 0) {
+        Alert.alert(
+          '알림',
+          'IAP가 초기화되지 않았습니다. 잠시 후 다시 시도해주세요.',
+          [{ text: '확인' }]
+        );
+        return;
+      }
+
+      const purchases = await RNIap.getAvailablePurchases();
+      console.log('📦 구매 내역:', purchases);
+
+      if (purchases.length === 0) {
+        Alert.alert(
+          '구독 없음',
+          '복원할 구독이 없습니다.',
+          [{ text: '확인' }]
+        );
+        return;
+      }
+
+      // 가장 최근 구매 복원
+      const latestPurchase = purchases[purchases.length - 1];
+      await verifyPurchase(latestPurchase);
+
+      Alert.alert(
+        '복원 완료',
+        '구독이 복원되었습니다.',
+        [{ text: '확인', onPress: () => loadUserData() }]
+      );
+    } catch (error) {
+      console.error('❌ 구독 복원 실패:', error);
+      Alert.alert(
+        '복원 실패',
+        '구독 복원에 실패했습니다. 나중에 다시 시도해주세요.',
+        [{ text: '확인' }]
+      );
+    }
   };
 
   const getCurrentSubscription = () => {
@@ -272,6 +388,7 @@ export default function Store() {
   };
 
   const currentSubscription = getCurrentSubscription();
+
 
   // 가격 포맷팅
   const formatPrice = (product) => {
@@ -310,7 +427,6 @@ export default function Store() {
   return (
     <OrientationLock isNoteScreen={false}>
       <SafeAreaView style={styles.container}> 
-        <MiniTimer />
         {/* 헤더 */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()}>
@@ -325,7 +441,10 @@ export default function Store() {
         <ScrollView 
           style={styles.scrollView} 
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[
+            styles.scrollContent,
+            Dimensions.get('window').width >= 768 && styles.scrollContentTablet
+          ]}
         >
           {/* 현재 구독 상태 */}
           {currentSubscription && (
@@ -360,10 +479,7 @@ export default function Store() {
             </Text>
 
             {PLANS.map((plan) => {
-              const product = Platform.OS === 'android' 
-                ? subscriptions.find(s => s.productId === plan.productId)
-                : products.find(p => p.productId === plan.productId);
-              
+              const product = availableProducts.find(p => p.productId === plan.productId);
               const displayPrice = product ? formatPrice(product) : `월 ${plan.price}원`;
 
               return (
@@ -487,6 +603,7 @@ export default function Store() {
           </View>
         </Modal>
 
+
       </SafeAreaView>
     </OrientationLock>
   );
@@ -503,6 +620,7 @@ const baseStyles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingVertical: 16,
+    height: 60,
     backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
@@ -538,6 +656,12 @@ const baseStyles = StyleSheet.create({
   scrollContent: {
     paddingBottom: 20,
     flexGrow: 1,
+  },
+  scrollContentTablet: {
+    maxWidth: 800,
+    width: '100%',
+    alignSelf: 'center',
+    paddingHorizontal: 40,
   },
   currentSubscription: {
     margin: 20,

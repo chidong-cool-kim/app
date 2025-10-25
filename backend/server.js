@@ -128,6 +128,7 @@ cron.schedule('0 0 * * 1', async () => {
 // Routes
 const signupRoutes = require('./router/route_1');
 const authRoutes = require('./router/route_2');
+const authSimpleRoutes = require('./router/route_auth_simple'); // 새로운 간단한 인증 라우터
 const communityRoutes = require('./router/route_3');
 const emailRoutes = require('./router/route_email');
 const aiRoutes = require('./router/route_ai');
@@ -139,11 +140,17 @@ const iapRoutes = require('./router/route_iap');
 const noteRoutes = require('./router/route_notes');
 const plannerRoutes = require('./router/route_planner');
 const googleOAuthRoutes = require('./router/route_google_oauth');
+const mockExamRoutes = require('./router/route_mock_exam');
+const attendanceRoutes = require('./routes/attendance');
 
-app.use('/api/signup', signupRoutes);
-app.use('/api/auth', signupRoutes); // route_1.js를 /api/auth로도 등록 (초대 API용)
+// 새로운 간단한 인증 라우터 우선 적용
+app.use('/api/signup', authSimpleRoutes);
+app.use('/api/auth', authSimpleRoutes);
+
+// 기존 라우터들 (백업용)
+app.use('/api/signup-old', signupRoutes);
+app.use('/api/auth-old', authRoutes);
 app.use('/api', signupRoutes); // route_1.js를 /api로도 등록 (user/details API용)
-app.use('/api/auth', authRoutes);
 app.use('/api', authRoutes); // 사용자 데이터 조회용 (/api/user-data 경로 포함)
 app.use('/api/auth', googleOAuthRoutes); // Google OAuth 라우트
 app.use('/api/community', communityRoutes);
@@ -156,6 +163,8 @@ app.use('/api', emailRoutes);
 app.use('/api/iap', iapRoutes);
 app.use('/api/notes', noteRoutes);
 app.use('/api', plannerRoutes);
+app.use('/api', mockExamRoutes);
+app.use('/api/attendance', attendanceRoutes);
 
 // Health check
 app.get('/', (req, res) => {

@@ -3,9 +3,9 @@ import { Platform } from 'react-native';
 
 // API Base URL - 실제 서버 IP 주소로 변경하세요
 export const API_URL = Platform.select({
-  ios: 'http://192.168.45.53:5000',
-  android: 'http://192.168.45.53:5000',
-  default: 'http://localhost:5000'
+    ios: `http://${DEV_IP}:5000`,
+    android: `http://${DEV_IP}:5000`,
+    web: 'http://localhost:5000'
 });
 
 // 토큰 가져오기

@@ -76,6 +76,8 @@ const BanModal = ({ visible, banInfo, onClose }) => {
       transparent={true}
       animationType="none"
       onRequestClose={() => {}} // 닫기 방지
+      statusBarTranslucent={false}
+      hardwareAccelerated={true}
     >
       <TouchableOpacity 
         style={styles.blockingOverlay}

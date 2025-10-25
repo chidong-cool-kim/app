@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   StyleSheet,
   Text,
@@ -8,8 +8,11 @@ import {
   ScrollView,
   RefreshControl,
   Alert,
+  Share,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import { useResponsive } from './hooks/useResponsive';
+import OrientationLock from './components/OrientationLock';
 import userDataService from './userDataService';
 import studyTimeService from './services/StudyTimeService';
 
@@ -19,6 +22,7 @@ export default function StudyGroupDetail() {
   const navigation = useNavigation();
   const route = useRoute();
   const { groupId, groupName } = route.params;
+  const responsiveUtil = useResponsive();
   
   const [groupDetail, setGroupDetail] = useState(null);
   const [members, setMembers] = useState([]);
@@ -136,6 +140,37 @@ export default function StudyGroupDetail() {
     setRefreshing(false);
   };
 
+  const handleShareInvite = async () => {
+    try {
+      const user = await userDataService.getCurrentUser();
+      if (!user) return;
+
+      const response = await fetch(`${API_URL}/api/study-groups/${groupId}/invite-link`, {
+        headers: {
+          'Authorization': `Bearer ${user.email}`,
+        }
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        const { webLink, groupName } = data.inviteLink;
+        
+        // Share API를 사용하여 카카오톡 등으로 공유
+        await Share.share({
+          message: `[스터디그룹 초대]\n\n${groupName}에 초대합니다!\n\n아래 링크를 클릭하여 참여하세요:\n${webLink}`,
+          title: '스터디그룹 초대',
+        });
+      } else {
+        Alert.alert('오류', data.error || '초대 링크 생성에 실패했습니다.');
+      }
+    } catch (error) {
+      console.error('초대 링크 공유 오류:', error);
+      if (error.message !== 'User did not share') {
+        Alert.alert('오류', '초대 링크 공유에 실패했습니다.');
+      }
+    }
+  };
+
   const formatStudyTime = (minutes) => {
     if (!minutes) return '0분';
     const hours = Math.floor(minutes / 60);
@@ -200,6 +235,12 @@ export default function StudyGroupDetail() {
     // 주간 공부시간 계산 (임시로 오늘 시간 * 7로 표시)
     return getTodayStudyTime(member) * 7;
   };
+
+  // 반응형 스타일 적용
+  const styles = useMemo(
+    () => responsiveUtil.applyAll(baseStyles),
+    [responsiveUtil]
+  );
 
   const renderMemberCard = (member, isCurrentUser = false) => (
     <View key={member._id} style={[styles.memberCard, isCurrentUser && styles.currentUserCard]}>
@@ -275,6 +316,7 @@ export default function StudyGroupDetail() {
   });
 
   return (
+    <OrientationLock isNoteScreen={false}>
     <SafeAreaView style={styles.container}>
       {/* 헤더 */}
       <View style={styles.header}>
@@ -282,7 +324,9 @@ export default function StudyGroupDetail() {
           <Text style={styles.backBtn}>← 뒤로</Text>
         </TouchableOpacity>
         <Text style={styles.title} numberOfLines={1}>{groupDetail.name}</Text>
-        <View style={{ width: 50 }} />
+        <TouchableOpacity style={styles.headerInviteButton} onPress={handleShareInvite}>
+          <Text style={styles.headerInviteButtonText}>친구 초대</Text>
+        </TouchableOpacity>
       </View>
 
       <ScrollView 
@@ -357,10 +401,11 @@ export default function StudyGroupDetail() {
         </View>
       </ScrollView>
     </SafeAreaView>
+    </OrientationLock>
   );
 }
 
-const styles = StyleSheet.create({
+const baseStyles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f8f9fa',
@@ -387,6 +432,17 @@ const styles = StyleSheet.create({
     flex: 1,
     textAlign: 'center',
     marginHorizontal: 10,
+  },
+  headerInviteButton: {
+    backgroundColor: '#007AFF',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  headerInviteButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
   loadingContainer: {
     flex: 1,

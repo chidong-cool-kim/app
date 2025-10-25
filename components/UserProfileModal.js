@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, Modal, StyleSheet, TouchableOpacity, Image, ActivityIndicator, ScrollView } from 'react-native';
+import { View, Text, Modal, StyleSheet, TouchableOpacity, Image, ActivityIndicator, ScrollView, Alert } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import userDataService from '../userDataService';
 
 const API_URL = 'http://192.168.45.53:5000';
 
 export default function UserProfileModal({ visible, onClose, userEmail }) {
+  const navigation = useNavigation();
   const [userData, setUserData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -13,6 +16,26 @@ export default function UserProfileModal({ visible, onClose, userEmail }) {
       fetchUserData();
     }
   }, [visible, userEmail]);
+
+  const handleJoinGroup = async (group) => {
+    try {
+      const currentUser = await userDataService.getCurrentUser();
+      if (!currentUser) {
+        Alert.alert('로그인 필요', '로그인이 필요합니다.');
+        return;
+      }
+
+      // 스터디그룹 상세 화면으로 이동
+      onClose();
+      navigation.navigate('StudyGroupDetail', { 
+        groupId: group._id,
+        groupName: group.name 
+      });
+    } catch (error) {
+      console.error('스터디그룹 이동 오류:', error);
+      Alert.alert('오류', '스터디그룹으로 이동할 수 없습니다.');
+    }
+  };
 
   const fetchUserData = async () => {
     setLoading(true);
@@ -42,6 +65,11 @@ export default function UserProfileModal({ visible, onClose, userEmail }) {
       }
       
       if (data.success) {
+        console.log('👤 사용자 데이터:', {
+          email: data.user.email,
+          studyGroupsCount: data.user.studyGroups?.length || 0,
+          studyGroups: data.user.studyGroups
+        });
         setUserData(data.user);
       } else {
         throw new Error(data.message || '사용자 정보를 가져올 수 없습니다.');
@@ -77,10 +105,15 @@ export default function UserProfileModal({ visible, onClose, userEmail }) {
             <Text style={styles.sectionTitle}>가입한 스터디 그룹</Text>
             {userData.studyGroups && userData.studyGroups.length > 0 ? (
               userData.studyGroups.map(group => (
-                <View key={group._id} style={styles.studyGroupCard}>
+                <TouchableOpacity 
+                  key={group._id} 
+                  style={styles.studyGroupCard}
+                  onPress={() => handleJoinGroup(group)}
+                >
                   <Text style={styles.studyGroupName}>{group.name}</Text>
                   <Text style={styles.studyGroupDescription}>{group.description}</Text>
-                </View>
+                  <Text style={styles.joinButtonText}>참여하기 →</Text>
+                </TouchableOpacity>
               ))
             ) : (
               <Text style={styles.noDataText}>가입한 스터디 그룹이 없습니다.</Text>
@@ -163,6 +196,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#333',
     marginBottom: 10,
+    textAlign: 'center',
   },
   studyGroupCard: {
     backgroundColor: '#f9f9f9',
@@ -176,6 +210,14 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
     color: '#444',
+    marginBottom: 5,
+  },
+  joinButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#4A90E2',
+    marginTop: 8,
+    textAlign: 'right',
   },
   studyGroupDescription: {
     fontSize: 14,

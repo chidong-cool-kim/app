@@ -41,9 +41,12 @@ export default function Settings() {
     isPremiumUser: false,
     effectIntensity: 30,
   });
+  const [selectedAiStyle, setSelectedAiStyle] = useState('friendly');
+  const [showAiStyleModal, setShowAiStyleModal] = useState(false);
 
   useEffect(() => {
     loadUserData();
+    loadAiStyle();
   }, []);
 
   const loadUserData = async () => {
@@ -68,6 +71,82 @@ export default function Settings() {
       console.error('사용자 정보 로드 실패:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadAiStyle = async () => {
+    try {
+      const user = await userDataService.getCurrentUser();
+      if (!user) return;
+
+      // 서버에서 AI 스타일 불러오기
+      const response = await fetch(`http://192.168.45.53:5000/api/users/ai-style/${user.email}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          setSelectedAiStyle(data.aiStyle);
+        }
+      } else {
+        // 서버에서 불러오기 실패 시 로컬에서 불러오기
+        const savedStyle = await AsyncStorage.getItem('aiStyle');
+        if (savedStyle) {
+          setSelectedAiStyle(savedStyle);
+        }
+      }
+    } catch (error) {
+      console.error('AI 스타일 로드 실패:', error);
+      try {
+        const savedStyle = await AsyncStorage.getItem('aiStyle');
+        if (savedStyle) {
+          setSelectedAiStyle(savedStyle);
+        }
+      } catch (localError) {
+        console.error('로컬 AI 스타일 로드 실패:', localError);
+      }
+    }
+  };
+
+  const saveAiStyle = async (style) => {
+    try {
+      const user = await userDataService.getCurrentUser();
+      if (!user) return;
+
+      // 서버에 AI 스타일 저장
+      const response = await fetch(`http://192.168.45.53:5000/api/users/ai-style`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: user.email,
+          aiStyle: style
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          await AsyncStorage.setItem('aiStyle', style);
+          setSelectedAiStyle(style);
+        }
+      } else {
+        await AsyncStorage.setItem('aiStyle', style);
+        setSelectedAiStyle(style);
+      }
+    } catch (error) {
+      console.error('AI 스타일 저장 실패:', error);
+      try {
+        await AsyncStorage.setItem('aiStyle', style);
+        setSelectedAiStyle(style);
+      } catch (localError) {
+        console.error('로컬 AI 스타일 저장 실패:', localError);
+      }
     }
   };
 
@@ -368,6 +447,31 @@ export default function Settings() {
           </View>
         )}
 
+        {/* AI 대화 스타일 설정 - 프리미엄 구독자만 */}
+        {userInfo?.subscription?.isActive && userInfo?.subscription?.planId === 'premium' && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>🎨 AI 대화 스타일</Text>
+            
+            <TouchableOpacity 
+              style={styles.settingItem}
+              onPress={() => setShowAiStyleModal(true)}
+            >
+              <View>
+                <Text style={styles.settingText}>AI 응답 스타일</Text>
+                <Text style={[styles.settingValue, { fontSize: 14, marginTop: 4 }]}>
+                  현재: {{
+                    friendly: '친근한 스타일 😊',
+                    professional: '전문적인 스타일 💼',
+                    casual: '캐주얼한 스타일 🎮',
+                    formal: '격식있는 스타일 🎓',
+                  }[selectedAiStyle]}
+                </Text>
+              </View>
+              <Text style={styles.settingValue}>›</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
         {/* 특수 효과 설정 - 구독자만 */}
         {userInfo?.subscription?.isActive && (
           <View style={styles.section}>
@@ -543,6 +647,104 @@ export default function Settings() {
                 <Text style={styles.saveButtonText}>저장</Text>
               </TouchableOpacity>
             </View>
+          </View>
+        </View>
+      </MobileModal>
+
+      {/* AI 스타일 선택 모달 */}
+      <MobileModal
+        visible={showAiStyleModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowAiStyleModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { maxWidth: 400 }]}>
+            <Text style={[styles.modalTitle, { fontSize: 20, marginBottom: 8 }]}>🎨 AI 대화 스타일 선택</Text>
+            <Text style={{ fontSize: 14, color: '#666', textAlign: 'center', marginBottom: 20 }}>
+              프리미엄 회원 전용 기능입니다
+            </Text>
+
+            <View style={{ gap: 12, marginBottom: 20 }}>
+              <TouchableOpacity
+                style={[
+                  styles.aiStyleOption,
+                  selectedAiStyle === 'friendly' && styles.selectedAiStyleOption,
+                ]}
+                onPress={async () => {
+                  await saveAiStyle('friendly');
+                  setShowAiStyleModal(false);
+                  Alert.alert('설정 완료', 'AI 대화 스타일이 "친근한" 스타일로 설정되었습니다.');
+                }}
+              >
+                <Text style={styles.aiStyleIcon}>😊</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.aiStyleName}>친근한 스타일</Text>
+                  <Text style={styles.aiStyleDescription}>편안하고 다정한 말투로 대화합니다</Text>
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.aiStyleOption,
+                  selectedAiStyle === 'professional' && styles.selectedAiStyleOption,
+                ]}
+                onPress={async () => {
+                  await saveAiStyle('professional');
+                  setShowAiStyleModal(false);
+                  Alert.alert('설정 완료', 'AI 대화 스타일이 "전문적인" 스타일로 설정되었습니다.');
+                }}
+              >
+                <Text style={styles.aiStyleIcon}>💼</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.aiStyleName}>전문적인 스타일</Text>
+                  <Text style={styles.aiStyleDescription}>정확하고 전문적인 답변을 제공합니다</Text>
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.aiStyleOption,
+                  selectedAiStyle === 'casual' && styles.selectedAiStyleOption,
+                ]}
+                onPress={async () => {
+                  await saveAiStyle('casual');
+                  setShowAiStyleModal(false);
+                  Alert.alert('설정 완료', 'AI 대화 스타일이 "캐주얼한" 스타일로 설정되었습니다.');
+                }}
+              >
+                <Text style={styles.aiStyleIcon}>🎮</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.aiStyleName}>캐주얼한 스타일</Text>
+                  <Text style={styles.aiStyleDescription}>편하고 자유로운 분위기로 대화합니다</Text>
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.aiStyleOption,
+                  selectedAiStyle === 'formal' && styles.selectedAiStyleOption,
+                ]}
+                onPress={async () => {
+                  await saveAiStyle('formal');
+                  setShowAiStyleModal(false);
+                  Alert.alert('설정 완료', 'AI 대화 스타일이 "격식있는" 스타일로 설정되었습니다.');
+                }}
+              >
+                <Text style={styles.aiStyleIcon}>🎓</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.aiStyleName}>격식있는 스타일</Text>
+                  <Text style={styles.aiStyleDescription}>정중하고 격식을 갖춘 말투를 사용합니다</Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity
+              style={[styles.cancelButton, { flex: 1 }]}
+              onPress={() => setShowAiStyleModal(false)}
+            >
+              <Text style={styles.cancelButtonText}>닫기</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </MobileModal>
@@ -736,5 +938,32 @@ const baseStyles = StyleSheet.create({
     height: 10,
     borderRadius: 5,
     backgroundColor: '#4A90E2',
+  },
+  aiStyleOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8F9FA',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 2,
+    borderColor: '#E5E5E5',
+    gap: 12,
+  },
+  selectedAiStyleOption: {
+    backgroundColor: '#E3F2FD',
+    borderColor: '#2196F3',
+  },
+  aiStyleIcon: {
+    fontSize: 32,
+  },
+  aiStyleName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#000',
+    marginBottom: 4,
+  },
+  aiStyleDescription: {
+    fontSize: 12,
+    color: '#666',
   },
 });

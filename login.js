@@ -11,6 +11,8 @@ import {
   Image,
   Dimensions,
   Platform,
+  KeyboardAvoidingView,
+  ScrollView,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -238,8 +240,15 @@ export default function Login() {
     };
 
     const finishLogin = async () => {
+        // 이메일 검증
         if (!email.trim()) {
             Alert.alert('오류', '이메일을 입력해주세요.');
+            return;
+        }
+
+        // 비밀번호 검증 (필수!)
+        if (!password.trim()) {
+            Alert.alert('오류', '비밀번호를 입력해주세요.');
             return;
         }
 
@@ -248,103 +257,46 @@ export default function Login() {
             await AsyncStorage.removeItem('is_authenticated');
             userDataService.clearCurrentUser();
 
-            const gmailResponse = await apiCall(API_ENDPOINTS.GMAIL_LOGIN, {
-                method: 'POST',
-                body: JSON.stringify({
-                    email: email.trim()
-                })
-            });
-
-            if (gmailResponse.ok) {
-                const gmailData = await gmailResponse.json();
-                
-                if (!gmailData.user.username) {
-                    const userInfo = {
-                        id: gmailData.user.id,
-                        name: gmailData.user.name,
-                        email: gmailData.user.email,
-                        provider: gmailData.user.provider,
-                        createdAt: gmailData.user.createdAt
-                    };
-                    
-                    Alert.alert('닉네임 설정 필요', '닉네임을 설정해주세요.', [
-                        { 
-                            text: '확인', 
-                            onPress: () => navigation.navigate('Username', { 
-                                userInfo,
-                                fromGmailAuth: true
-                            })
-                        }
-                    ]);
-                    return;
-                }
-                
-                const userInfo = {
-                    id: gmailData.user.id,
-                    name: gmailData.user.name,
-                    email: gmailData.user.email,
-                    username: gmailData.user.username,
-                    provider: gmailData.user.provider,
-                    createdAt: gmailData.user.createdAt,
-                    notesCount: gmailData.user.notesCount,
-                    dailyStudyMinutes: gmailData.user.dailyStudyMinutes,
-                    plannersCount: gmailData.user.plannersCount
-                };
-
-                userDataService.clearCurrentUser();
-                await AsyncStorage.setItem('currentUser', JSON.stringify(userInfo));
-                await AsyncStorage.setItem('is_authenticated', 'true');
-
-                Alert.alert('로그인 성공', `환영합니다, ${gmailData.user.username}님!`, [
-                    { text: '확인', onPress: () => navigation.navigate('Main') }
-                ]);
-                return;
-            }
-
-            if (!password.trim()) {
-                Alert.alert('오류', '일반 사용자는 비밀번호가 필요합니다.');
-                return;
-            }
-
-            const emailResponse = await apiCall(API_ENDPOINTS.EMAIL_LOGIN, {
+            // email과 password 모두 검증하는 로그인
+            const loginResponse = await apiCall(API_ENDPOINTS.EMAIL_LOGIN, {
                 method: 'POST',
                 body: JSON.stringify({
                     email: email.trim(),
-                    password: password
+                    password: password.trim()
                 })
             });
 
-            const emailData = await emailResponse.json();
+            const loginData = await loginResponse.json();
 
-            if (!emailResponse.ok) {
-                Alert.alert('로그인 실패', emailData.message);
+            if (!loginResponse.ok || !loginData.success) {
+                // 로그인 실패 - 이메일 또는 비밀번호가 틀림
+                Alert.alert('로그인 실패', loginData.error || '이메일 또는 비밀번호가 올바르지 않습니다.');
                 return;
             }
 
+            // 로그인 성공
             const userInfo = {
-                id: emailData.user.id,
-                name: emailData.user.name,
-                email: emailData.user.email,
-                username: emailData.user.username,
-                provider: emailData.user.provider,
-                createdAt: emailData.user.createdAt,
-                notesCount: emailData.user.notesCount,
-                dailyStudyMinutes: emailData.user.dailyStudyMinutes,
-                plannersCount: emailData.user.plannersCount
+                id: loginData.user._id,
+                name: loginData.user.name,
+                email: loginData.user.email,
+                username: loginData.user.username,
+                provider: loginData.user.provider,
+                profileImage: loginData.user.profileImage,
+                subscription: loginData.user.subscription,
+                createdAt: loginData.user.createdAt
             };
 
             userDataService.clearCurrentUser();
-
             await AsyncStorage.setItem('currentUser', JSON.stringify(userInfo));
             await AsyncStorage.setItem('is_authenticated', 'true');
 
-            Alert.alert('로그인 성공', `환영합니다, ${emailData.user.username}님!`, [
+            Alert.alert('로그인 성공', `환영합니다, ${loginData.user.username || loginData.user.name}님!`, [
                 { text: '확인', onPress: () => navigation.navigate('Main') }
             ]);
 
         } catch (error) {
             console.error('로그인 오류:', error);
-            Alert.alert('오류', '로그인 중 오류가 발생했습니다.');
+            Alert.alert('오류', '로그인 중 오류가 발생했습니다. 네트워크 연결을 확인해주세요.');
         }
     };
 
@@ -367,6 +319,16 @@ export default function Login() {
     return (
         <OrientationLock isNoteScreen={false}>
             <MobileSafeArea style={styles.safeArea} backgroundColor="#ffffff">
+            <KeyboardAvoidingView 
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                style={{ flex: 1 }}
+                keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+            >
+            <ScrollView 
+                contentContainerStyle={{ flexGrow: 1 }}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+            >
             {/* 상단 바 */}
             <View style={[
                 styles.position1,
@@ -584,6 +546,8 @@ export default function Login() {
                     screenInfo.isPhone && !isLandscape && styles.hrMobile
                 ]}></View>
             </View>
+            </ScrollView>
+            </KeyboardAvoidingView>
             </MobileSafeArea>
         </OrientationLock>
     );
@@ -608,13 +572,13 @@ const baseStyles = StyleSheet.create({
         width: '100%',
         justifyContent: 'center',
         alignSelf: 'flex-start',
-        marginTop: 25,
+        marginTop: 10,
     },
     position3: {
         width: '100%',
         justifyContent: 'center',
         alignSelf: 'flex-end',
-        marginBottom: 25,
+        marginBottom: 10,
     },
     mainContent: {
         flex: 1,
@@ -636,15 +600,15 @@ const baseStyles = StyleSheet.create({
     rightSection: {
         width: '50%',
         backgroundColor: '#ffffff',
-        justifyContent: 'space-between',
+        justifyContent: 'center',
         alignItems: 'center',
         paddingHorizontal: 60,
     },
     formContainer: {
         width: '100%',
-        maxWidth: 430,
+        maxWidth: 450,
         alignItems: 'center',
-        flex: 1,
+        alignSelf: 'center',
         justifyContent: 'center',
     },
     title: {
@@ -652,8 +616,9 @@ const baseStyles = StyleSheet.create({
         fontWeight: '700',
         color: '#000000',
         marginBottom: 26,
-        alignSelf: 'flex-start',
-        textAlign: 'left',
+        alignSelf: 'center',
+        textAlign: 'center',
+        width: '100%',
     },
     input: {
         width: '100%',
@@ -788,16 +753,18 @@ const baseStyles = StyleSheet.create({
     titleMobile: {
         fontSize: 36,
         marginBottom: 20,
-        textAlign: 'left',
-        alignSelf: 'flex-start',
+        textAlign: 'center',
+        alignSelf: 'center',
         fontWeight: '700',
+        width: '100%',
     },
     formContainerMobile: {
-        width: '96%',
-        maxWidth: 380,
+        width: '100%',
+        maxWidth: 400,
         alignSelf: 'center',
         alignItems: 'center',
-        paddingHorizontal: 12,
+        justifyContent: 'center',
+        paddingHorizontal: 20,
         paddingVertical: 10,
     },
     inputMobile: {
@@ -826,10 +793,10 @@ const baseStyles = StyleSheet.create({
         justifyContent: 'center',
     },
     position1Mobile: {
-        marginTop: 10,
+        marginTop: 15,
     },
     position3Mobile: {
-        marginBottom: 10,
+        marginBottom: 15,
     },
     
     // 가로모드 전용 스타일

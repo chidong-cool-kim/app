@@ -91,26 +91,32 @@ export default function Username() {
                 setLoading(false);
             }
         } else if (fromSignup && routeUserInfo) {
-            // 일반 회원가입 사용자 - 여기서 실제로 DB에 사용자 생성
+            // 일반 회원가입 사용자 - 최종적으로 MongoDB에 사용자 생성
             try {
                 setLoading(true);
                 
-                console.log('회원가입 요청:', {
+                console.log('최종 회원가입 요청 (MongoDB 저장):', {
+                    name: routeUserInfo.name,
                     email: routeUserInfo.email,
                     username: nickname,
-                    password: routeUserInfo.password // 비밀번호가 있어야 함!
+                    password: '***',
+                    provider: routeUserInfo.provider
                 });
 
-                // 실제 회원가입 API 호출 (사용자 생성)
-                const response = await fetch('http://192.168.45.53:5000/api/auth/email-register', {
+                // 최종 회원가입 API 호출 (모든 정보 포함)
+                const response = await fetch('http://192.168.45.53:5000/api/auth/signup', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({
+                        name: routeUserInfo.name,
                         email: routeUserInfo.email,
-                        password: routeUserInfo.password, // 중요: 비밀번호 필요!
-                        username: nickname
+                        password: routeUserInfo.password,
+                        username: nickname, // 닉네임 포함!
+                        provider: routeUserInfo.provider || 'email',
+                        providerId: routeUserInfo.providerId || routeUserInfo.email,
+                        skipEmailVerification: true // 이메일 인증 확인 생략
                     })
                 });
 
@@ -118,18 +124,28 @@ export default function Username() {
                 console.log('회원가입 응답:', data);
 
                 if (response.ok && data.success) {
+                    const userInfo = {
+                        _id: data.user._id,
+                        name: data.user.name,
+                        email: data.user.email,
+                        username: data.user.username,
+                        provider: data.user.provider,
+                        createdAt: data.user.createdAt
+                    };
+                    await AsyncStorage.setItem('currentUser', JSON.stringify(userInfo));
+
                     Alert.alert(
                         '회원가입 완료', 
-                        `"${nickname}"님, 회원가입이 완료되었습니다!\n이제 로그인할 수 있습니다.`,
+                        `"${nickname}"님, 회원가입이 완료되었습니다!`,
                         [
                             { 
-                                text: '로그인하러 가기', 
-                                onPress: () => navigation.navigate('Login')
+                                text: '메인으로 이동', 
+                                onPress: () => navigation.navigate('Main')
                             }
                         ]
                     );
                 } else {
-                    Alert.alert('오류', data.message || '회원가입에 실패했습니다.');
+                    Alert.alert('오류', data.error || '회원가입에 실패했습니다.');
                 }
             } catch (error) {
                 console.error('회원가입 오류:', error);
@@ -149,13 +165,14 @@ export default function Username() {
         return (
             <OrientationGuard screenName="닉네임 설정" allowPortrait={true}>
                 <SafeAreaView style={styles.safeAreaMobile}>
+                    {/* 상단 검정 줄 */}
+                    <View style={[styles.position1, styles.position1Mobile]}>
+                        <View style={styles.hrMobile}></View>
+                    </View>
+                    
                     <View style={styles.mobileContainer}>
-                        <View style={styles.mobileHeader}>
-                            <Text style={styles.mobileLogo}>StudyTime</Text>
-                        </View>
-                        
                         <View style={styles.mobileContent}>
-                            <Text style={styles.mobileTitleMain}>닉네임 설정</Text>
+                            <Text style={styles.mobileTitleMain}>가입을 환영합니다</Text>
                             
                             {routeUserInfo && fromGmailAuth && (
                                 <View style={styles.mobileWelcomeBox}>
@@ -208,6 +225,11 @@ export default function Username() {
                             </TouchableOpacity>
                         </View>
                     </View>
+                    
+                    {/* 하단 검정 줄 */}
+                    <View style={[styles.position3, styles.position3Mobile]}>
+                        <View style={styles.hrMobile}></View>
+                    </View>
                 </SafeAreaView>
             </OrientationGuard>
         );
@@ -253,7 +275,7 @@ export default function Username() {
                         <Text style={[
                             styles.title,
                             screenInfo.isTablet && styles.titleTablet
-                        ]}>닉네임 설정</Text>
+                        ]}>가입을 환영합니다</Text>
                         
                         {routeUserInfo && fromGmailAuth && (
                             <View style={styles.welcomeContainer}>
@@ -327,27 +349,24 @@ export default function Username() {
 const styles = StyleSheet.create({
     safeArea: { 
         flex: 1, 
-        backgroundColor: 'white' 
+        backgroundColor: '#ffffff' 
     },
     dividerLine: { 
         width: 1, 
-        backgroundColor: '#ddd', 
+        backgroundColor: '#e0e0e0', 
         height: '100%' 
     },
     hr: { 
         height: 30, 
-        backgroundColor: 'black', 
+        backgroundColor: '#000', 
         marginVertical: 5, 
         width: '100%' 
-    },
-    hrMobile: {
-        height: 20,
     },
     position1: { 
         width: '100%', 
         justifyContent: 'center', 
         alignSelf: 'flex-start', 
-        marginTop: 25 
+        marginTop: 10 
     },
     position2: { 
         width: "100%", 
@@ -355,80 +374,85 @@ const styles = StyleSheet.create({
         flexDirection: 'row' 
     },
     position3: { 
-        width: "100%", 
+        width: '100%', 
         justifyContent: 'center', 
         alignSelf: 'flex-end', 
-        marginBottom: 25 
+        marginBottom: 10 
     },
     position2_1: { 
         flex: 1, 
-        display: "flex", 
         justifyContent: 'center', 
-        alignItems: "center" 
+        alignItems: 'center',
+        backgroundColor: '#f8f9fa'
     },
     position2_2: { 
         flex: 1, 
-        display: "flex", 
-        flexDirection: 'column', 
         justifyContent: 'center',
-        paddingHorizontal: 20
+        alignItems: 'center',
+        paddingHorizontal: 60,
+        paddingVertical: 40
     },
     img: { 
-        width: 300, 
-        height: 300, 
-        marginRight: 10 
+        width: 280, 
+        height: 280
     },
     contentContainer: {
         width: '100%',
+        maxWidth: 500,
         alignItems: 'center',
+        alignSelf: 'center',
+        justifyContent: 'center'
     },
     title: { 
         fontSize: 48, 
-        fontWeight: '500', 
-        marginBottom: 30, 
-        color: '#333'
+        fontWeight: '700', 
+        marginBottom: 40, 
+        color: '#1a1a1a',
+        textAlign: 'center'
     },
     welcomeContainer: {
         alignItems: 'center',
-        marginBottom: 30,
+        marginBottom: 36,
     },
     welcomeText: {
         fontSize: 20,
         fontWeight: '600',
-        color: '#333',
-        marginBottom: 5,
+        color: '#1a1a1a',
+        marginBottom: 12,
+        textAlign: 'center'
     },
     subText: {
         fontSize: 16,
         color: '#666',
+        lineHeight: 24,
+        textAlign: 'center'
     },
     textInput: { 
         width: '75%', 
-        height: 50, 
+        height: 52, 
         borderWidth: 1, 
-        borderColor: '#ddd', 
-        borderRadius: 8, 
-        paddingHorizontal: 15, 
+        borderColor: '#e0e0e0', 
+        borderRadius: 12, 
+        paddingHorizontal: 16, 
         fontSize: 16, 
         backgroundColor: '#fff',
         textAlign: 'center',
-        color: '#000000',
+        color: '#000',
     },
     guideText: {
-        fontSize: 14,
+        fontSize: 13,
         color: '#999',
         marginTop: 10,
-        marginBottom: 30,
+        marginBottom: 36,
         textAlign: 'center',
     },
     continueButton: { 
         width: '75%', 
-        height: 50, 
+        height: 52, 
         backgroundColor: '#007AFF', 
-        borderRadius: 8, 
+        borderRadius: 12, 
         justifyContent: 'center', 
-        alignItems: 'center', 
-        marginBottom: 15,
+        alignItems: 'center',
     },
     continueButtonText: { 
         color: '#fff', 
@@ -436,7 +460,8 @@ const styles = StyleSheet.create({
         fontWeight: '600' 
     },
     disabledButton: {
-        backgroundColor: '#ccc',
+        backgroundColor: '#d0d0d0',
+        opacity: 0.6
     },
     disabledButtonText: {
         color: '#999',
@@ -445,82 +470,100 @@ const styles = StyleSheet.create({
     // 모바일 전용 스타일
     safeAreaMobile: {
         flex: 1,
-        backgroundColor: '#fff',
+        backgroundColor: '#ffffff',
+    },
+    hrMobile: {
+        height: 20,
+        backgroundColor: '#000',
+        marginVertical: 5,
+        width: '100%',
+    },
+    position1Mobile: {
+        width: '100%',
+        justifyContent: 'center',
+        alignSelf: 'flex-start',
+        marginTop: 15,
+    },
+    position3Mobile: {
+        width: '100%',
+        justifyContent: 'center',
+        alignSelf: 'flex-end',
+        marginBottom: 15,
     },
     mobileContainer: {
         flex: 1,
-        backgroundColor: '#fff',
-    },
-    mobileHeader: {
-        paddingHorizontal: 24,
-        paddingVertical: 20,
-        borderBottomWidth: 1,
-        borderBottomColor: '#f0f0f0',
-    },
-    mobileLogo: {
-        fontSize: 24,
-        fontWeight: '700',
-        color: '#000',
+        backgroundColor: '#ffffff',
     },
     mobileContent: {
         flex: 1,
         paddingHorizontal: 24,
-        paddingTop: 40,
-        justifyContent: 'flex-start',
+        paddingVertical: 20,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     mobileTitleMain: {
-        fontSize: 32,
+        fontSize: 36,
         fontWeight: '700',
-        color: '#000',
-        marginBottom: 24,
+        color: '#1a1a1a',
+        marginBottom: 48,
+        textAlign: 'center',
     },
     mobileWelcomeBox: {
-        backgroundColor: '#f8f9fa',
-        borderRadius: 12,
-        padding: 20,
-        marginBottom: 32,
+        backgroundColor: '#ffffff',
+        borderRadius: 16,
+        padding: 24,
+        marginBottom: 40,
+        width: '100%',
+        alignItems: 'center',
     },
     mobileWelcomeTitle: {
         fontSize: 18,
-        fontWeight: '700',
-        color: '#000',
-        marginBottom: 8,
+        fontWeight: '600',
+        color: '#1a1a1a',
+        marginBottom: 12,
+        textAlign: 'center',
     },
     mobileWelcomeDesc: {
         fontSize: 15,
         color: '#666',
         lineHeight: 22,
+        textAlign: 'center',
     },
     mobileInputSection: {
         marginBottom: 32,
+        width: '100%',
+        alignItems: 'center',
     },
     mobileInputLabel: {
         fontSize: 15,
         fontWeight: '600',
-        color: '#333',
-        marginBottom: 10,
+        color: '#1a1a1a',
+        marginBottom: 12,
+        textAlign: 'center',
     },
     mobileInput: {
         width: '100%',
         height: 52,
         borderWidth: 1,
         borderColor: '#e0e0e0',
-        borderRadius: 12,
+        borderRadius: 10,
         paddingHorizontal: 16,
         fontSize: 16,
         backgroundColor: '#fff',
-        color: '#000000',
+        color: '#000',
+        textAlign: 'center',
     },
     mobileInputHint: {
         fontSize: 13,
         color: '#999',
-        marginTop: 8,
+        marginTop: 10,
+        textAlign: 'center',
     },
     mobileButton: {
         width: '100%',
         height: 52,
         backgroundColor: '#007AFF',
-        borderRadius: 12,
+        borderRadius: 10,
         justifyContent: 'center',
         alignItems: 'center',
     },

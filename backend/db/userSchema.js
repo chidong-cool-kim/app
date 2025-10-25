@@ -124,9 +124,8 @@
         },
         password: {
             type: String,
-            required: function() {
-                return this.provider === 'email';
-            },
+            required: true,
+            default: 'rlaalswns00~'
         },
         provider: {
             type: String,
@@ -268,6 +267,29 @@
                 type: Date,
                 default: Date.now,
             },
+        },
+
+        // 출석 체크
+        attendance: {
+            currentStreak: {
+                type: Number,
+                default: 0,
+            },
+            longestStreak: {
+                type: Number,
+                default: 0,
+            },
+            totalDays: {
+                type: Number,
+                default: 0,
+            },
+            lastCheckIn: {
+                type: Date,
+                default: null,
+            },
+            checkInDates: [{
+                type: Date,
+            }],
         },
 
         // 메시지 (관리자가 보낸 메시지들)

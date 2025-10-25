@@ -95,8 +95,14 @@ router.put('/:noteId', async (req, res) => {
 
         // 노트 수정
         user.notes[noteIndex].title = title;
-        user.notes[noteIndex].content = content;
+        user.notes[noteIndex].content = content !== undefined ? content : '';
         user.notes[noteIndex].updatedAt = new Date();
+        
+        console.log('📝 [Notes API] 수정된 내용:', {
+            title: user.notes[noteIndex].title,
+            content: user.notes[noteIndex].content,
+            contentLength: user.notes[noteIndex].content?.length || 0
+        });
 
         await user.save();
 

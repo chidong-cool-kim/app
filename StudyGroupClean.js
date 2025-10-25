@@ -12,12 +12,15 @@ import {
   FlatList,
   RefreshControl,
   Image,
+  StatusBar,
+  Platform,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import MobileSafeArea from './components/MobileSafeArea';
 import { useResponsive } from './hooks/useResponsive';
 import OrientationLock from './components/OrientationLock';
 import userDataService from './userDataService';
+import { checkLimit, getLimitMessage, getUpgradeMessage, getUserPlan } from './utils/subscriptionLimits';
 
 const API_URL = 'http://192.168.45.53:5000';
 
@@ -123,6 +126,24 @@ export default function StudyGroup() {
       const user = await userDataService.getCurrentUser();
       if (!user) return;
 
+      // 생성한 그룹 수 체크
+      const createdGroups = myGroups.filter(g => g.creator?.email === user.email);
+      const limitCheck = checkLimit(user, 'studyGroupsCreate', createdGroups.length);
+      
+      if (!limitCheck.canCreate) {
+        const plan = getUserPlan(user);
+        const upgradeMsg = getUpgradeMessage(plan);
+        Alert.alert(
+          '생성 제한',
+          `${getLimitMessage('studyGroupsCreate', plan)}\n\n${upgradeMsg}`,
+          [
+            { text: '확인', style: 'cancel' },
+            { text: '구독하기', onPress: () => navigation.navigate('Store') }
+          ]
+        );
+        return;
+      }
+
       const response = await fetch(`${API_URL}/api/study-groups`, {
         method: 'POST',
         headers: {
@@ -158,6 +179,23 @@ export default function StudyGroup() {
     try {
       const user = await userDataService.getCurrentUser();
       if (!user) return;
+
+      // 가입한 그룹 수 체크
+      const limitCheck = checkLimit(user, 'studyGroupsJoin', myGroups.length);
+      
+      if (!limitCheck.canCreate) {
+        const plan = getUserPlan(user);
+        const upgradeMsg = getUpgradeMessage(plan);
+        Alert.alert(
+          '가입 제한',
+          `${getLimitMessage('studyGroupsJoin', plan)}\n\n${upgradeMsg}`,
+          [
+            { text: '확인', style: 'cancel' },
+            { text: '구독하기', onPress: () => navigation.navigate('Store') }
+          ]
+        );
+        return;
+      }
 
       const response = await fetch(`${API_URL}/api/study-groups/${groupId}/join`, {
         method: 'POST',
@@ -325,8 +363,10 @@ export default function StudyGroup() {
   );
 
   return (
-    <OrientationLock isNoteScreen={false}>
-      <SafeAreaView style={styles.container}>
+    <>
+    <StatusBar barStyle="dark-content" backgroundColor="white" />
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <OrientationLock isNoteScreen={false}>
       {/* 상단 헤더 */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
@@ -497,8 +537,9 @@ export default function StudyGroup() {
           </View>
         </View>
       </Modal>
-      </SafeAreaView>
-    </OrientationLock>
+      </OrientationLock>
+    </SafeAreaView>
+    </>
   );
 }
 
@@ -511,11 +552,11 @@ const baseStyles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-    backgroundColor: '#fff',
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+    backgroundColor: 'white',
     borderBottomWidth: 1,
-    borderBottomColor: '#e9ecef',
+    borderBottomColor: '#E5E5E5',
   },
   backBtn: {
     fontSize: 16,
@@ -523,9 +564,9 @@ const baseStyles = StyleSheet.create({
     fontWeight: '500',
   },
   title: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#212529',
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#000',
   },
   createBtn: {
     fontSize: 16,
@@ -534,27 +575,27 @@ const baseStyles = StyleSheet.create({
   },
   tabContainer: {
     flexDirection: 'row',
-    backgroundColor: '#fff',
+    backgroundColor: 'white',
     borderBottomWidth: 1,
-    borderBottomColor: '#e9ecef',
+    borderBottomColor: '#E5E5E5',
   },
   tab: {
     flex: 1,
-    paddingVertical: 15,
+    paddingVertical: 16,
     alignItems: 'center',
   },
   activeTab: {
-    borderBottomWidth: 2,
+    borderBottomWidth: 3,
     borderBottomColor: '#007AFF',
   },
   tabText: {
     fontSize: 16,
-    color: '#6c757d',
+    color: '#666',
     fontWeight: '500',
   },
   activeTabText: {
     color: '#007AFF',
-    fontWeight: '600',
+    fontWeight: '700',
   },
   searchContainer: {
     flexDirection: 'row',

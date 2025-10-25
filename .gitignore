@@ -15,7 +15,7 @@ yarn-error.log*
 *.pem
 
 # Environment
-# .env (Private 저장소라서 포함)
+.env
 .env.local
 .env.*.local
 

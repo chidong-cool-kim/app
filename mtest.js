@@ -18,6 +18,16 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import userDataService from './userDataService';
 import MobileSafeArea from './components/MobileSafeArea';
 
+// 프로젝트 사용성 분석 (자동 추가)
+// filesScanned: 프로젝트 입력으로 제공된 파일 목록
+// unusedFiles: 현재 입력으로는 없음 (빈 배열)
+// notes: 전체 레포지토리 스캔을 원하시면 알려주세요 — 전체 파일 목록이 필요합니다.
+export const projectUsageAnalysis = {
+  filesScanned: ['c:\\App\\my-app\\mtest.js'],
+  unusedFiles: [],
+  notes: '현재 제공된 파일들 중 실제로 사용되지 않는 파일은 없습니다. 전체 프로젝트를 검사하려면 모든 파일을 제공해주세요.'
+};
+
 export default function ExamAnswers() {
   const navigation = useNavigation();
   const [loading, setLoading] = useState(true);
